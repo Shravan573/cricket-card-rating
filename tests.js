@@ -51,7 +51,7 @@ const PLAYERS = [
 ═══════════════════════════════════════════════════════════════ */
 const FORMAT_CONFIG = {
   T20I: { label:'T20I',
-    weights:{ careerOutput:25,peakICC:20,popularity:15,roleReliability:10,oppositionQuality:10,matchupProfile:10,currentForm:10 },
+    weights:{ careerOutput:25,peakICC:20,popularity:10,roleReliability:10,oppositionQuality:10,matchupProfile:10,currentForm:15 },
     sw:{ avg:0.35,sr:0.40,bnd:0.25 }, pm:{},
     sub:['Batting Avg','Strike Rate','Boundary %'] },
   ODI: { label:'ODI',
@@ -153,11 +153,13 @@ function buildCard(player, format, year, userWeights) {
     form: Math.min(100, raw.form * (pm.form || 1) * yf.factor),
   };
 
+  const era_adj = Math.min(1, 0.60 + 0.40 * yf.factor);
+
   const scores = {
-    careerOutput:     eff.avg * fc.sw.avg + eff.sr * fc.sw.sr + eff.bnd * fc.sw.bnd,
+    careerOutput:     (eff.avg * fc.sw.avg + eff.sr * fc.sw.sr + eff.bnd * fc.sw.bnd) * era_adj,
     peakICC:          eff.icc,
-    popularity:       eff.pop,
-    roleReliability:  eff.rr,
+    popularity:       Math.min(100, eff.pop * (0.80 + 0.20 * yf.factor)),
+    roleReliability:  Math.min(100, eff.rr * era_adj),
     oppositionQuality:eff.oq,
     matchupProfile:   (eff.pace + eff.spin) / 2,
     currentForm:      eff.form,
