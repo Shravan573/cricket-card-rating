@@ -23,10 +23,6 @@
       from { opacity: 0; transform: scale(0.80) translateY(30px) rotateX(8deg); }
       to   { opacity: 1; transform: scale(1) translateY(0) rotateX(0); }
     }
-    @keyframes shimmer {
-      0%   { background-position: -400px 0; }
-      100% { background-position: 400px 0; }
-    }
     @keyframes pulseGlow {
       0%, 100% { filter: drop-shadow(0 0 8px rgba(250,204,21,0.4)); }
       50%       { filter: drop-shadow(0 0 22px rgba(250,204,21,0.9)); }
@@ -45,6 +41,25 @@
     .format-btn:hover { opacity: 0.85; }
     .gen-btn:hover { filter: brightness(1.1); }
     .gen-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+    .tab-nav-btn {
+      padding: 11px 22px; font-size: 13px; font-weight: 700;
+      border: none; border-bottom: 2px solid transparent;
+      background: transparent; color: #6b7280;
+      transition: color 0.2s, border-color 0.2s; letter-spacing: 0.3px;
+    }
+    .tab-nav-btn:hover { color: #9ca3af; border-bottom-color: rgba(255,255,255,0.15); transform: none; }
+    .tab-nav-btn.active { color: #818cf8; border-bottom-color: #6366f1; }
+
+    .db-row { transition: background 0.12s; cursor: pointer; }
+    .db-row:hover { background: rgba(255,255,255,0.055) !important; }
+
+    .design-card {
+      background: rgba(255,255,255,0.025);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px;
+      padding: 16px 18px;
+    }
   </style>
 </head>
 <body>
@@ -331,7 +346,6 @@ const PLAYERS = [
     p:{avg:72,sr:80,bnd:75,icc:85,pop:80,rr:85,oq:80,pace:78,spin:82,form:70},
     fo:{} },
 
-  /* ── AUSTRALIA ── */
   { id:44, name:"Liam Livingstone", country:"England",     code:"ENG", flag:"🏴󠁧󠁢󠁥󠁮󠁧󠁿", role:"Batsman",
     ay:[2017,2026], py:[2021,2026], iw:0.85,
     note:"360-degree hitting with off-spin utility. IPL market's fastest-rising valuation.",
@@ -414,12 +428,12 @@ const PILLAR_META = {
 };
 
 const TIERS = [
-  { min:95, label:'LEGEND', bg:'linear-gradient(145deg,#78350f,#f59e0b,#92400e)', text:'#1c0a00' },
-  { min:90, label:'ICON',   bg:'linear-gradient(145deg,#3b0764,#a855f7,#4c1d95)', text:'#f3e8ff' },
-  { min:85, label:'ELITE',  bg:'linear-gradient(145deg,#1e3a8a,#3b82f6,#1d4ed8)', text:'#dbeafe' },
-  { min:80, label:'STAR',   bg:'linear-gradient(145deg,#134e4a,#14b8a6,#0f766e)', text:'#ccfbf1' },
-  { min:75, label:'PRO',    bg:'linear-gradient(145deg,#14532d,#22c55e,#15803d)', text:'#dcfce7' },
-  { min:0,  label:'RARE',   bg:'linear-gradient(145deg,#1f2937,#6b7280,#374151)', text:'#f3f4f6' },
+  { min:95, label:'LEGEND', bg:'linear-gradient(145deg,#78350f,#f59e0b,#92400e)', text:'#1c0a00', color:'#f59e0b' },
+  { min:90, label:'ICON',   bg:'linear-gradient(145deg,#3b0764,#a855f7,#4c1d95)', text:'#f3e8ff', color:'#a855f7' },
+  { min:85, label:'ELITE',  bg:'linear-gradient(145deg,#1e3a8a,#3b82f6,#1d4ed8)', text:'#dbeafe', color:'#3b82f6' },
+  { min:80, label:'STAR',   bg:'linear-gradient(145deg,#134e4a,#14b8a6,#0f766e)', text:'#ccfbf1', color:'#14b8a6' },
+  { min:75, label:'PRO',    bg:'linear-gradient(145deg,#14532d,#22c55e,#15803d)', text:'#dcfce7', color:'#22c55e' },
+  { min:0,  label:'RARE',   bg:'linear-gradient(145deg,#1f2937,#6b7280,#374151)', text:'#f3f4f6', color:'#6b7280' },
 ];
 const getTier = ovr => TIERS.find(t => ovr >= t.min);
 
@@ -451,13 +465,13 @@ function getSuggestions(query) {
 function getYearFactor(player, year) {
   const [start, end] = player.ay;
   const [ps, pe]     = player.py;
-  // Bug fixes applied (confirmed by unit tests in tests.js):
-  // 1. `year < start` (was `year < start - 1`) — catches the year immediately before debut
-  // 2. `year > end + 3` (was `year > end + 4`) — 4 yrs post-career is RETIRED, not LATE CAREER
-  // 3. factor rounded to 2dp to eliminate floating-point noise (e.g. 0.9299999...)
+  // Bug fixes (confirmed by unit tests in tests.js):
+  // 1. `year < start` (was `year < start - 1`)
+  // 2. `year > end + 3` (was `year > end + 4`)
+  // 3. factor rounded to 2dp to eliminate floating-point noise
   if (year < start)   return { factor:0.45, badge:'PRE-CAREER',  note:'Before international debut' };
   if (year > end + 3) return { factor:0.28, badge:'RETIRED',     note:'Post-retirement era' };
-  if (year > end)     return { factor:0.50, badge:'LATE CAREER',  note:'Final / post-peak seasons' };
+  if (year > end)     return { factor:0.50, badge:'LATE CAREER', note:'Final / post-peak seasons' };
   if (year >= ps && year <= pe) return { factor:1.0, badge:'PEAK', note:'Peak performance years' };
   if (year < ps) {
     const d = ps - year;
@@ -472,7 +486,6 @@ function buildCard(player, format, year, userWeights) {
   const yf  = getYearFactor(player, year);
   const fo  = player.fo[format] || {};
 
-  // Merge base pillars + format overrides
   const raw = {
     avg:  fo.avg  ?? player.p.avg,
     sr:   fo.sr   ?? player.p.sr,
@@ -486,7 +499,6 @@ function buildCard(player, format, year, userWeights) {
     form: fo.form ?? player.p.form,
   };
 
-  // Apply format pillar multipliers (capped at 100)
   const pm  = fc.pm;
   const eff = {
     avg:  Math.min(100, raw.avg  * (pm.avg  || 1)),
@@ -501,7 +513,6 @@ function buildCard(player, format, year, userWeights) {
     form: Math.min(100, raw.form * (pm.form || 1) * yf.factor),
   };
 
-  // Pillar scores
   const scores = {
     careerOutput:     eff.avg * fc.sw.avg + eff.sr * fc.sw.sr + eff.bnd * fc.sw.bnd,
     peakICC:          eff.icc,
@@ -512,7 +523,6 @@ function buildCard(player, format, year, userWeights) {
     currentForm:      eff.form,
   };
 
-  // Use format default weights, allowing user slider overrides
   const weights = { ...fc.weights, ...userWeights };
   const total   = PILLAR_KEYS.reduce((s, k) => s + (weights[k] || 0), 0) || 1;
   const raw_ovr = PILLAR_KEYS.reduce((s, k) => s + scores[k] * (weights[k] || 0) / total, 0);
@@ -522,10 +532,9 @@ function buildCard(player, format, year, userWeights) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   COMPONENTS
+   SHARED COMPONENTS
 ═══════════════════════════════════════════════════════════════ */
 
-/* Pillar weight slider */
 function Slider({ pKey, value, onChange }) {
   const { label, color, icon, desc } = PILLAR_META[pKey];
   return (
@@ -542,7 +551,6 @@ function Slider({ pKey, value, onChange }) {
   );
 }
 
-/* Small card in collection */
 function CollectionMini({ card, onSelect }) {
   const tier = getTier(card.ovr);
   return (
@@ -565,7 +573,6 @@ function CollectionMini({ card, onSelect }) {
   );
 }
 
-/* Generated card (large) */
 function BigCard({ card, displayOVR, isNew }) {
   const tier = getTier(card.ovr);
   const { player: p, eff, yf, format, year } = card;
@@ -578,8 +585,6 @@ function BigCard({ card, displayOVR, isNew }) {
         display:'flex', flexDirection:'column', gap:10,
         userSelect:'none', flexShrink:0,
       }}>
-
-      {/* OVR + badge row */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
         <div>
           <div style={{ fontSize:60, fontWeight:900, lineHeight:1 }}>{displayOVR}</div>
@@ -599,18 +604,12 @@ function BigCard({ card, displayOVR, isNew }) {
           }}>{yf.badge}</div>
         </div>
       </div>
-
-      {/* Flag portrait */}
       <div style={{
         background:'rgba(0,0,0,0.2)', borderRadius:12,
         padding:'14px 0', textAlign:'center', fontSize:52,
       }}>{p.flag}</div>
-
-      {/* Name */}
       <div style={{ fontWeight:900, fontSize:15, textAlign:'center', lineHeight:1.25 }}>{p.name}</div>
       <div style={{ fontSize:10, textAlign:'center', opacity:0.6, letterSpacing:0.5 }}>{p.code}</div>
-
-      {/* Key attributes */}
       <div style={{
         display:'grid', gridTemplateColumns:'1fr 1fr', gap:'6px 10px',
         background:'rgba(0,0,0,0.18)', borderRadius:10, padding:'10px 12px', fontSize:12,
@@ -626,14 +625,11 @@ function BigCard({ card, displayOVR, isNew }) {
   );
 }
 
-/* Breakdown panel */
 function BreakdownPanel({ card }) {
   const { scores, weights, eff, fc, player:p } = card;
   const total = PILLAR_KEYS.reduce((s,k) => s + (weights[k]||0), 0) || 1;
-
   return (
     <div style={{ flex:1, minWidth:280, maxWidth:400 }}>
-      {/* Note */}
       {p.note && (
         <div style={{
           background:'rgba(34,197,94,0.07)', borderLeft:'3px solid #22c55e',
@@ -641,7 +637,6 @@ function BreakdownPanel({ card }) {
           lineHeight:1.6, marginBottom:18
         }}>{p.note}</div>
       )}
-
       <div style={{ fontSize:10, color:'#4b5563', letterSpacing:2, fontWeight:700, textTransform:'uppercase', marginBottom:12 }}>Pillar Breakdown</div>
       {PILLAR_KEYS.map(key => {
         const { label, color, icon } = PILLAR_META[key];
@@ -663,15 +658,13 @@ function BreakdownPanel({ card }) {
           </div>
         );
       })}
-
       <div style={{ marginTop:16 }}>
         <div style={{ fontSize:10, color:'#4b5563', letterSpacing:2, fontWeight:700, textTransform:'uppercase', marginBottom:10 }}>
           Career Output Sub-Pillars → {Math.round(scores.careerOutput)}
         </div>
         {fc.sub.map((lbl, i) => {
-          const keys = ['avg','sr','bnd'];
-          const wts  = [fc.sw.avg, fc.sw.sr, fc.sw.bnd];
-          const val  = Math.round([eff.avg, eff.sr, eff.bnd][i]);
+          const wts = [fc.sw.avg, fc.sw.sr, fc.sw.bnd];
+          const val = Math.round([eff.avg, eff.sr, eff.bnd][i]);
           return (
             <div key={lbl} style={{ marginBottom:8 }}>
               <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3, fontSize:11, color:'#9ca3af' }}>
@@ -685,7 +678,6 @@ function BreakdownPanel({ card }) {
           );
         })}
       </div>
-
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:16 }}>
         {[['vs PACE',Math.round(eff.pace),'#06b6d4'],['vs SPIN',Math.round(eff.spin),'#8b5cf6']].map(([lbl,val,clr])=>(
           <div key={lbl} style={{ background:'rgba(255,255,255,0.04)', borderRadius:9, padding:12, textAlign:'center', border:'1px solid rgba(255,255,255,0.05)' }}>
@@ -694,7 +686,6 @@ function BreakdownPanel({ card }) {
           </div>
         ))}
       </div>
-
       <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#374151', marginTop:12 }}>
         <span>Year factor: <strong style={{ color:'#6b7280' }}>{card.yf.factor.toFixed(2)}× — {card.yf.note}</strong></span>
         <span>OVR 60–99</span>
@@ -703,7 +694,6 @@ function BreakdownPanel({ card }) {
   );
 }
 
-/* Weight editor modal */
 function WeightModal({ weights, format, onChange, onClose, onReset }) {
   const total = PILLAR_KEYS.reduce((s,k) => s + (weights[k]||0), 0);
   const ok    = Math.abs(total - 100) < 1;
@@ -750,9 +740,479 @@ function WeightModal({ weights, format, onChange, onClose, onReset }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   TAB 1 — DESIGN APPROACH
+═══════════════════════════════════════════════════════════════ */
+function DesignTab() {
+  return (
+    <div style={{ maxWidth:920, margin:'0 auto', padding:'40px 28px 60px' }}>
+
+      {/* THE PROBLEM */}
+      <section style={{ marginBottom:52 }}>
+        <div style={{ fontSize:10, letterSpacing:2, color:'#6366f1', fontWeight:700, marginBottom:10, textTransform:'uppercase' }}>The Problem</div>
+        <h2 style={{ fontSize:26, fontWeight:900, marginBottom:16, lineHeight:1.3 }}>What number goes on the card?</h2>
+        <p style={{ color:'#9ca3af', lineHeight:1.8, fontSize:13, marginBottom:16 }}>
+          Any sports collection game has to answer one question before it can answer anything else. Get it wrong in one direction and the game is statistically correct but feels broken. Get it wrong in the other and it feels good but the meta collapses — because ratings stop tracking anything a player can reason about.
+        </p>
+        <div style={{ background:'rgba(239,68,68,0.07)', border:'1px solid rgba(239,68,68,0.18)', borderRadius:10, padding:'14px 18px', marginBottom:20 }}>
+          <div style={{ fontSize:12, color:'#f87171', fontWeight:700, marginBottom:6 }}>The clearest failure case</div>
+          <div style={{ color:'#d1d5db', lineHeight:1.7, fontSize:13 }}>
+            Build OVR directly off ICC rankings and <strong>Abhishek Sharma outranks Virat Kohli</strong> in T20I. That is accurate to current form and completely unacceptable to a cricket fan. ICC rankings are a form tracker. A card rating is a claim about a player's identity.
+          </div>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(155px, 1fr))', gap:10 }}>
+          {[
+            ['1','One OVR per player per format'],
+            ['2','Credible to a fan with an opinion'],
+            ['3','Derived from real data, not assigned'],
+            ['4','Reproducible across 500+ players'],
+            ['5','Explainable in one sentence per card'],
+          ].map(([n, t]) => (
+            <div key={n} className="design-card" style={{ display:'flex', gap:10, alignItems:'flex-start' }}>
+              <span style={{ fontSize:16, fontWeight:900, color:'#6366f1', lineHeight:1.2, flexShrink:0 }}>{n}</span>
+              <span style={{ fontSize:11, color:'#9ca3af', lineHeight:1.5 }}>{t}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* WHY ONE STAT FAILS */}
+      <section style={{ marginBottom:52 }}>
+        <div style={{ fontSize:10, letterSpacing:2, color:'#22c55e', fontWeight:700, marginBottom:10, textTransform:'uppercase' }}>Why One Stat Is Never Enough</div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))', gap:12 }}>
+          {[
+            ['Batting Average alone','Fails in T20. A 45 avg at 118 SR is a worse card than a 28 avg at 165 SR.','#ef4444'],
+            ['Strike Rate alone','Rewards tail-end cameos. A #9 with 6 innings at 190 SR beats a top-order anchor every time.','#f97316'],
+            ['Any single metric','Every metric has a player it embarrasses. OVR must be a composite of separate named claims.','#eab308'],
+          ].map(([title, desc, clr]) => (
+            <div key={title} className="design-card" style={{ borderLeft:`3px solid ${clr}` }}>
+              <div style={{ fontSize:12, fontWeight:800, color:clr, marginBottom:6 }}>{title} fails</div>
+              <div style={{ fontSize:12, color:'#9ca3af', lineHeight:1.6 }}>{desc}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* SEVEN PILLARS */}
+      <section style={{ marginBottom:52 }}>
+        <div style={{ fontSize:10, letterSpacing:2, color:'#a855f7', fontWeight:700, marginBottom:10, textTransform:'uppercase' }}>The Seven Pillars</div>
+        <h3 style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Each pillar answers a different question about the player</h3>
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {[
+            { key:'careerOutput',      label:'Career Output',      weight:25, color:'#22c55e', icon:'📊', q:'How productive is this player over a career?' },
+            { key:'peakICC',           label:'Peak ICC Rating',    weight:20, color:'#a855f7', icon:'🏆', q:'How high did they ever climb?' },
+            { key:'popularity',        label:'Popularity',         weight:15, color:'#f97316', icon:'⭐', q:'Does the fan expect this player to be good?' },
+            { key:'roleReliability',   label:'Role Reliability',   weight:10, color:'#3b82f6', icon:'🎯', q:'Do they show up consistently in their role?' },
+            { key:'oppositionQuality', label:'Opposition Quality', weight:10, color:'#ef4444', icon:'⚔️', q:'Did they do it against real teams?' },
+            { key:'matchupProfile',    label:'Matchup Profile',    weight:10, color:'#06b6d4', icon:'🔄', q:'Are they good against both pace and spin?' },
+            { key:'currentForm',       label:'Current Form',       weight:10, color:'#eab308', icon:'📈', q:'Are they good right now?' },
+          ].map(({ label, weight, color, icon, q }) => (
+            <div key={label} className="design-card" style={{ display:'flex', alignItems:'center', gap:16 }}>
+              <div style={{ width:38, textAlign:'center', fontSize:20, flexShrink:0 }}>{icon}</div>
+              <div style={{ flex:1 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}>
+                  <span style={{ fontSize:13, fontWeight:800, color }}>{label}</span>
+                  <span style={{ fontSize:14, fontWeight:900, color }}>{weight}%</span>
+                </div>
+                <div style={{ height:5, borderRadius:3, background:'rgba(255,255,255,0.05)', marginBottom:5, overflow:'hidden' }}>
+                  <div style={{ width:`${weight * 2}%`, height:'100%', background:color, borderRadius:3 }} />
+                </div>
+                <div style={{ fontSize:11, color:'#6b7280' }}>{q}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* CAREER OUTPUT BREAKDOWN */}
+      <section style={{ marginBottom:52 }}>
+        <div style={{ fontSize:10, letterSpacing:2, color:'#22c55e', fontWeight:700, marginBottom:10, textTransform:'uppercase' }}>Career Output (25%) — Internal Breakdown</div>
+        <p style={{ color:'#9ca3af', fontSize:13, lineHeight:1.8, marginBottom:16 }}>
+          The largest pillar has three sub-inputs. Strike rate carries the most weight because the target product is a short-format game — scoring rate dominates match results. Boundary percentage is included separately because it captures ceiling in a way that strike rate averages away.
+        </p>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:12, marginBottom:12 }}>
+          {[
+            { label:'Batting Avg', pct:35, band:'22–52 range', color:'#22c55e', note:'T20I sub-weight' },
+            { label:'Strike Rate', pct:40, band:'118–172 range', color:'#10b981', note:'Heaviest (short formats)' },
+            { label:'Boundary %', pct:25, band:'25–65 range', color:'#059669', note:'Ceiling indicator' },
+          ].map(({ label, pct, band, color, note }) => (
+            <div key={label} className="design-card" style={{ textAlign:'center' }}>
+              <div style={{ fontSize:34, fontWeight:900, color, marginBottom:4 }}>{pct}%</div>
+              <div style={{ fontSize:12, fontWeight:700, color:'#d1d5db', marginBottom:4 }}>{label}</div>
+              <div style={{ fontSize:10, color:'#4b5563', marginBottom:6 }}>{band}</div>
+              <div style={{ fontSize:9, color:'#374151', fontStyle:'italic' }}>{note}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ fontSize:11, color:'#4b5563', padding:'10px 14px', background:'rgba(255,255,255,0.02)', borderRadius:8, lineHeight:1.7 }}>
+          Sub-weights shift per format. In Test, batting average rises to 60% of Career Output (vs 35% in T20I). In IPL, strike rate rises to 45%.
+        </div>
+      </section>
+
+      {/* FORMAT WEIGHT MATRIX */}
+      <section style={{ marginBottom:52 }}>
+        <div style={{ fontSize:10, letterSpacing:2, color:'#06b6d4', fontWeight:700, marginBottom:10, textTransform:'uppercase' }}>Format Weight Matrix</div>
+        <div style={{ overflowX:'auto', borderRadius:12, border:'1px solid rgba(255,255,255,0.07)' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+            <thead>
+              <tr style={{ borderBottom:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.02)' }}>
+                <th style={{ padding:'10px 16px', textAlign:'left', color:'#6b7280', fontWeight:600, whiteSpace:'nowrap' }}>Pillar</th>
+                {FORMAT_KEYS.map(f => (
+                  <th key={f} style={{ padding:'10px 10px', textAlign:'center', color:'#9ca3af', fontWeight:700, whiteSpace:'nowrap' }}>
+                    {FORMAT_CONFIG[f].emoji} {f}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {PILLAR_KEYS.map((key, i) => {
+                const { label, color, icon } = PILLAR_META[key];
+                const vals = FORMAT_KEYS.map(f => FORMAT_CONFIG[f].weights[key] || 0);
+                const maxVal = Math.max(...vals);
+                return (
+                  <tr key={key} style={{ borderBottom:'1px solid rgba(255,255,255,0.04)', background: i%2===0 ? 'rgba(255,255,255,0.01)' : 'transparent' }}>
+                    <td style={{ padding:'10px 16px', color, fontWeight:700, whiteSpace:'nowrap' }}>{icon} {label}</td>
+                    {vals.map((v, j) => (
+                      <td key={j} style={{ padding:'10px 10px', textAlign:'center', fontWeight: v===maxVal ? 900 : 400, color: v===maxVal ? color : '#4b5563' }}>
+                        {v}%
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div style={{ fontSize:11, color:'#374151', marginTop:10, lineHeight:1.6 }}>Bold value in each row = highest weight for that pillar across formats.</div>
+      </section>
+
+      {/* CALIBRATION */}
+      <section style={{ marginBottom:52 }}>
+        <div style={{ fontSize:10, letterSpacing:2, color:'#eab308', fontWeight:700, marginBottom:10, textTransform:'uppercase' }}>Calibration Fixes</div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(280px, 1fr))', gap:14, marginBottom:24 }}>
+          <div className="design-card" style={{ borderLeft:'3px solid #ef4444' }}>
+            <div style={{ fontSize:12, fontWeight:800, color:'#f87171', marginBottom:8 }}>Cameo Inflation</div>
+            <div style={{ fontSize:12, color:'#9ca3af', lineHeight:1.7 }}>
+              Tail-end bowlers with tiny samples ranked in the top ten. Fixed with a minimum innings threshold against top-10 opposition. Players below the threshold are excluded from the rated pool, not silently dropped.
+            </div>
+          </div>
+          <div className="design-card" style={{ borderLeft:'3px solid #f97316' }}>
+            <div style={{ fontSize:12, fontWeight:800, color:'#fb923c', marginBottom:8 }}>Over-penalising Specialists</div>
+            <div style={{ fontSize:12, color:'#9ca3af', lineHeight:1.7 }}>
+              A hard floor under 50 innings was punishing legitimate T20 specialists relative to long-career veterans, purely for having played in a shorter era. Fixed with a softer graduated curve.
+            </div>
+          </div>
+        </div>
+        <div style={{ fontSize:10, color:'#4b5563', letterSpacing:2, fontWeight:700, textTransform:'uppercase', marginBottom:12 }}>Innings Weight Curve</div>
+        <div style={{ display:'inline-block', borderRadius:10, overflow:'hidden', border:'1px solid rgba(255,255,255,0.07)' }}>
+          <table style={{ borderCollapse:'collapse', fontSize:12 }}>
+            <thead>
+              <tr style={{ background:'rgba(255,255,255,0.03)', borderBottom:'1px solid rgba(255,255,255,0.08)' }}>
+                <th style={{ padding:'9px 22px', textAlign:'left', color:'#6b7280', fontWeight:600 }}>Innings vs Top 10</th>
+                <th style={{ padding:'9px 22px', textAlign:'center', color:'#6b7280', fontWeight:600 }}>Weight Applied</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[['100+','1.00'],['50 to 99','0.95'],['30 to 49','0.90'],['15 to 29','0.85'],['Under 15','0.75']].map(([inn,w]) => (
+                <tr key={inn} style={{ borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding:'9px 22px', color:'#d1d5db' }}>{inn}</td>
+                  <td style={{ padding:'9px 22px', textAlign:'center', fontWeight:800, color:'#22c55e' }}>{w}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div style={{ marginTop:14, fontSize:12, color:'#4b5563', lineHeight:1.7 }}>
+          Both fixes came from reading the output list top to bottom and asking one question per row: would a cricket fan argue with this? Every argument was a bug.
+        </div>
+      </section>
+
+      {/* LIMITATIONS */}
+      <section style={{ marginBottom:40 }}>
+        <div style={{ fontSize:10, letterSpacing:2, color:'#f97316', fontWeight:700, marginBottom:10, textTransform:'uppercase' }}>Known Limitations</div>
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {[
+            ['Popularity is a proxy','Instagram following correlates with fame but also with market size and social habits. A regionally beloved player in a smaller cricket nation is undervalued. A proper index would blend search volume, jersey sales, and broadcast appearances.'],
+            ['No format-specific cards yet','A Test specialist and a T20 specialist should not share a number. The gap between formats is large enough that a single OVR misrepresents most players.'],
+            ['Bowling parity missing','The seven pillars are tuned for batting. Bowling needs its own pillar set with economy and phase usage carrying the weight that strike rate carries here — not a mirrored batting model.'],
+            ['No card type layer','The cleanest long-term answer to the form vs legacy tension is separating base cards, peak-moment cards, and legend cards. Each makes a different claim.'],
+          ].map(([title, desc]) => (
+            <div key={title} className="design-card" style={{ display:'flex', gap:14 }}>
+              <div style={{ color:'#f97316', fontWeight:900, flexShrink:0, fontSize:16, marginTop:1 }}>→</div>
+              <div>
+                <div style={{ fontSize:12, fontWeight:800, color:'#fb923c', marginBottom:4 }}>{title}</div>
+                <div style={{ fontSize:12, color:'#6b7280', lineHeight:1.65 }}>{desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* TAKEAWAY */}
+      <div style={{ background:'rgba(99,102,241,0.07)', border:'1px solid rgba(99,102,241,0.18)', borderRadius:12, padding:'20px 24px' }}>
+        <div style={{ fontSize:12, fontWeight:800, color:'#818cf8', marginBottom:8 }}>Takeaway</div>
+        <div style={{ fontSize:13, color:'#c7d2fe', lineHeight:1.8 }}>
+          The hardest part of a rating system is never the math. It is deciding what the number should feel like to someone who already has an opinion, then defending that against balance requirements. Every weight in this model is a position on that tradeoff, and every one of them is written down and adjustable rather than buried in a spreadsheet.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TAB 2 — HOW TO USE
+═══════════════════════════════════════════════════════════════ */
+function HowToTab() {
+  return (
+    <div style={{ maxWidth:820, margin:'0 auto', padding:'40px 28px 60px' }}>
+
+      {/* QUICK START */}
+      <section style={{ marginBottom:52 }}>
+        <div style={{ fontSize:10, letterSpacing:2, color:'#6366f1', fontWeight:700, marginBottom:10, textTransform:'uppercase' }}>Quick Start</div>
+        <h2 style={{ fontSize:22, fontWeight:900, marginBottom:24 }}>Generate your first card in 4 steps</h2>
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          {[
+            ['1','🔍','Search a player','Type any name in the search field. Autocomplete activates at 2 characters. Try "Kohli", "Warne", "AB" or "IND" for country.'],
+            ['2','🏏','Pick a format','Select T20I, ODI, Test, IPL, BBL, PSL or SA20. Each format shifts pillar weights — Test buries Popularity, IPL amplifies it.'],
+            ['3','📅','Set the year','Drag the slider or use ‹ › buttons to pick any year 1985–2026. The card reflects the player\'s career era: PEAK, RISING, VETERAN, RETIRED.'],
+            ['4','⚡','Generate','Hit Generate (or press Enter). The OVR counts up to the result. The breakdown panel shows how each pillar contributed.'],
+          ].map(([num, icon, title, desc]) => (
+            <div key={num} style={{ display:'flex', gap:18, alignItems:'flex-start', background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:12, padding:'16px 20px' }}>
+              <div style={{ width:36, height:36, borderRadius:9, background:'rgba(99,102,241,0.14)', border:'1px solid rgba(99,102,241,0.28)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, fontWeight:900, color:'#818cf8', flexShrink:0 }}>{num}</div>
+              <div>
+                <div style={{ fontSize:14, fontWeight:800, marginBottom:4 }}>{icon} {title}</div>
+                <div style={{ fontSize:12, color:'#9ca3af', lineHeight:1.7 }}>{desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* READING A CARD */}
+      <section style={{ marginBottom:52 }}>
+        <div style={{ fontSize:10, letterSpacing:2, color:'#22c55e', fontWeight:700, marginBottom:10, textTransform:'uppercase' }}>Reading the Card</div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(210px, 1fr))', gap:10 }}>
+          {[
+            { label:'OVR  (60–99)', color:'#818cf8', desc:'The single visible number. 60 is the floor (retired or pre-career), 99 is the ceiling. Always a whole number.' },
+            { label:'Tier badge', color:'#a855f7', desc:'LEGEND (95+) → ICON (90+) → ELITE (85+) → STAR (80+) → PRO (75+) → RARE (<75). Sets the card colour.' },
+            { label:'Era badge', color:'#22c55e', desc:'PRE-CAREER / RISING / PEAK / VETERAN / LATE CAREER / RETIRED. Driven by the year slider relative to the player\'s career.' },
+            { label:'v Pace / v Spin', color:'#06b6d4', desc:'Matchup sub-attributes for squad building. Surfaced on the card because they are actionable. Not hidden inside OVR.' },
+            { label:'Form', color:'#eab308', desc:'Year-adjusted current form. Near-zero for retired players, peaks during PEAK era years. The most responsive value to the year slider.' },
+            { label:'Legacy', color:'#a855f7', desc:'Peak ICC rating score. Constant across all years — the permanent record of how high this player climbed.' },
+          ].map(({ label, color, desc }) => (
+            <div key={label} style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:10, padding:'14px 16px' }}>
+              <div style={{ fontSize:12, fontWeight:800, color, marginBottom:6 }}>{label}</div>
+              <div style={{ fontSize:11, color:'#6b7280', lineHeight:1.6 }}>{desc}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* FORMATS GUIDE */}
+      <section style={{ marginBottom:52 }}>
+        <div style={{ fontSize:10, letterSpacing:2, color:'#06b6d4', fontWeight:700, marginBottom:10, textTransform:'uppercase' }}>Formats at a Glance</div>
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {[
+            { f:'T20I', emoji:'🌐', note:'Baseline. SR-heavy Career Output, balanced pillars. The default format for head-to-head comparisons.' },
+            { f:'ODI',  emoji:'🏅', note:'Average gets more weight in Career Output. Slightly more emphasis on consistency over raw power.' },
+            { f:'Test', emoji:'🎩', note:'Average dominates (60% of Career Output). Popularity drops to 8%. Legacy and Role Reliability matter most.' },
+            { f:'IPL',  emoji:'🏏', note:'Popularity jumps to 22%. Boundary % highest. Matchup Profile rises — franchise format rewards specialists.' },
+            { f:'BBL',  emoji:'🇦🇺', note:'Like IPL but less Popularity weight. Balanced between international standing and T20 rate.' },
+            { f:'PSL',  emoji:'🇵🇰', note:'Like BBL. SR and Boundary weighted over average in Career Output.' },
+            { f:'SA20', emoji:'🇿🇦', note:'Popularity at 20% — mid-way between IPL and international. High Matchup Profile weight.' },
+          ].map(({ f, emoji, note }) => (
+            <div key={f} style={{ display:'flex', gap:16, padding:'10px 16px', background:'rgba(255,255,255,0.02)', borderRadius:8, alignItems:'flex-start', border:'1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ fontWeight:900, fontSize:13, color:'#818cf8', minWidth:54, flexShrink:0 }}>{emoji} {f}</div>
+              <div style={{ fontSize:12, color:'#9ca3af', lineHeight:1.6 }}>{note}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* YEAR SLIDER */}
+      <section style={{ marginBottom:52 }}>
+        <div style={{ fontSize:10, letterSpacing:2, color:'#eab308', fontWeight:700, marginBottom:10, textTransform:'uppercase' }}>Year Slider — How It Works</div>
+        <div style={{ color:'#9ca3af', fontSize:13, lineHeight:1.8, marginBottom:16 }}>
+          The year slider adjusts the <strong style={{ color:'#e5e7eb' }}>Current Form pillar only</strong> via a year factor (0–1) applied to the player's base form score. The remaining 6 pillars (career output, peak ICC, popularity, etc.) are fixed and represent permanent career quality.
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:9 }}>
+          {[
+            { badge:'PRE-CAREER',  factor:'0.45×',      color:'#6b7280', note:'Before debut' },
+            { badge:'RISING',      factor:'0.68–0.94×', color:'#93c5fd', note:'Approaching peak' },
+            { badge:'PEAK',        factor:'1.00×',      color:'#86efac', note:'Peak years' },
+            { badge:'VETERAN',     factor:'0.58–0.93×', color:'#fdba74', note:'Post-peak' },
+            { badge:'LATE CAREER', factor:'0.50×',      color:'#f97316', note:'Final seasons' },
+            { badge:'RETIRED',     factor:'0.28×',      color:'#ef4444', note:'4+ years retired' },
+          ].map(({ badge, factor, color, note }) => (
+            <div key={badge} style={{ background:'rgba(255,255,255,0.02)', border:`1px solid ${color}33`, borderRadius:9, padding:'11px 12px', textAlign:'center' }}>
+              <div style={{ fontSize:9, fontWeight:800, letterSpacing:0.8, color, marginBottom:5 }}>{badge}</div>
+              <div style={{ fontSize:16, fontWeight:900, color }}>{factor}</div>
+              <div style={{ fontSize:10, color:'#4b5563', marginTop:5 }}>{note}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* COLLECTION */}
+      <section style={{ marginBottom:52 }}>
+        <div style={{ fontSize:10, letterSpacing:2, color:'#22c55e', fontWeight:700, marginBottom:10, textTransform:'uppercase' }}>Building a Collection</div>
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {[
+            ['Generate a card','Search any player, set format and year, hit Generate.'],
+            ['Save to Collection','Click the green "Save to Collection" button below the card.'],
+            ['Browse saved cards','The collection strip appears below the generator. Click any mini-card to reload it.'],
+            ['Compare across formats','Save Virat Kohli as T20I 2017 and Test 2019 — the collection shows both side by side.'],
+          ].map(([title, desc]) => (
+            <div key={title} style={{ display:'flex', gap:14, padding:'11px 16px', background:'rgba(255,255,255,0.02)', borderRadius:8, border:'1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ color:'#22c55e', flexShrink:0, fontWeight:800, fontSize:16 }}>✓</div>
+              <div>
+                <div style={{ fontSize:12, fontWeight:700, color:'#d1d5db', marginBottom:2 }}>{title}</div>
+                <div style={{ fontSize:11, color:'#6b7280' }}>{desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* WEIGHT EDITOR */}
+      <section>
+        <div style={{ fontSize:10, letterSpacing:2, color:'#f97316', fontWeight:700, marginBottom:10, textTransform:'uppercase' }}>Weight Editor — ⚙️ Adjust Weights</div>
+        <div style={{ color:'#9ca3af', fontSize:13, lineHeight:1.8, marginBottom:14 }}>
+          Click "Adjust Weights" to open the pillar editor. All 7 weights are live sliders — every card re-calculates as you drag. Weights must sum to 100% (a colour indicator shows validity).
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', gap:9 }}>
+          <div style={{ background:'rgba(249,115,22,0.07)', border:'1px solid rgba(249,115,22,0.18)', borderRadius:9, padding:'13px 16px' }}>
+            <div style={{ fontSize:12, fontWeight:700, color:'#fb923c', marginBottom:4 }}>☆ Zero Popularity</div>
+            <div style={{ fontSize:12, color:'#9ca3af', lineHeight:1.6 }}>
+              Set Popularity to 0% and watch the leaderboard shift. The result is statistically defensible but commercially unusable — it demonstrates the core tradeoff the system is built to make visible.
+            </div>
+          </div>
+          <div style={{ background:'rgba(99,102,241,0.06)', border:'1px solid rgba(99,102,241,0.14)', borderRadius:9, padding:'13px 16px' }}>
+            <div style={{ fontSize:12, fontWeight:700, color:'#818cf8', marginBottom:4 }}>↺ Format Defaults</div>
+            <div style={{ fontSize:12, color:'#9ca3af', lineHeight:1.6 }}>
+              Switching format resets weights to that format's calibrated defaults. Your manual overrides are preserved until you switch format or reset.
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PLAYER DATABASE (inside Generator tab)
+═══════════════════════════════════════════════════════════════ */
+function PlayerDatabase({ format, year, weights, onSelectPlayer }) {
+  const [dbQuery,    setDbQuery]    = useState('');
+  const [roleFilter, setRoleFilter] = useState('All');
+
+  const roles = ['All', 'Batsman', 'WK-Batsman', 'Bowler', 'All-rounder'];
+
+  const rows = useMemo(() => {
+    const q = dbQuery.toLowerCase().trim();
+    return PLAYERS
+      .filter(p => {
+        if (q && !p.name.toLowerCase().includes(q) && !p.country.toLowerCase().includes(q) && !p.code.toLowerCase().includes(q)) return false;
+        if (roleFilter !== 'All' && p.role !== roleFilter) return false;
+        return true;
+      })
+      .map(p => {
+        const c = buildCard(p, format, year, weights);
+        return { player:p, ovr:c.ovr, yf:c.yf, tier:getTier(c.ovr) };
+      })
+      .sort((a, b) => b.ovr - a.ovr);
+  }, [format, year, weights, dbQuery, roleFilter]);
+
+  return (
+    <div style={{ borderTop:'1px solid rgba(255,255,255,0.06)', paddingTop:32, marginTop:8 }}>
+      {/* Header */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:14, flexWrap:'wrap', gap:8 }}>
+        <div style={{ fontSize:11, color:'#4b5563', letterSpacing:2, fontWeight:700, textTransform:'uppercase' }}>
+          Player Database — {FORMAT_CONFIG[format].emoji} {FORMAT_CONFIG[format].label} · {year}
+        </div>
+        <div style={{ fontSize:11, color:'#374151' }}>{rows.length} of {PLAYERS.length} players</div>
+      </div>
+
+      {/* Filters */}
+      <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'center', marginBottom:18 }}>
+        <input
+          type="text"
+          placeholder="Filter by name or country…"
+          value={dbQuery}
+          onChange={e => setDbQuery(e.target.value)}
+          style={{
+            padding:'7px 14px', fontSize:12, borderRadius:8,
+            background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)',
+            color:'#e5e7eb', width:200
+          }}
+        />
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+          {roles.map(r => (
+            <button key={r} onClick={() => setRoleFilter(r)} style={{
+              padding:'5px 11px', fontSize:11, fontWeight:700, borderRadius:6,
+              background: roleFilter===r ? 'rgba(99,102,241,0.18)' : 'rgba(255,255,255,0.04)',
+              border: `1px solid ${roleFilter===r ? '#6366f1' : 'rgba(255,255,255,0.07)'}`,
+              color: roleFilter===r ? '#818cf8' : '#6b7280',
+            }}>{r}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Table */}
+      <div style={{ overflowX:'auto', borderRadius:10, border:'1px solid rgba(255,255,255,0.07)' }}>
+        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+          <thead>
+            <tr style={{ background:'rgba(255,255,255,0.025)', borderBottom:'1px solid rgba(255,255,255,0.07)' }}>
+              <th style={{ padding:'9px 12px', textAlign:'left', color:'#4b5563', fontWeight:600, width:36 }}>#</th>
+              <th style={{ padding:'9px 12px', textAlign:'left', color:'#4b5563', fontWeight:600 }}>Player</th>
+              <th style={{ padding:'9px 12px', textAlign:'left', color:'#4b5563', fontWeight:600 }}>Country</th>
+              <th style={{ padding:'9px 12px', textAlign:'left', color:'#4b5563', fontWeight:600 }}>Role</th>
+              <th style={{ padding:'9px 14px', textAlign:'center', color:'#4b5563', fontWeight:600 }}>OVR</th>
+              <th style={{ padding:'9px 14px', textAlign:'center', color:'#4b5563', fontWeight:600 }}>Era</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ player:p, ovr, yf, tier }, i) => (
+              <tr key={p.id} className="db-row"
+                onClick={() => onSelectPlayer(p)}
+                title={`Generate ${p.name} card`}
+                style={{ borderBottom:'1px solid rgba(255,255,255,0.035)', background: i%2===0 ? 'rgba(255,255,255,0.012)' : 'transparent' }}>
+                <td style={{ padding:'9px 12px', color:'#374151', fontWeight:600 }}>{i+1}</td>
+                <td style={{ padding:'9px 12px' }}>
+                  <span style={{ marginRight:8, fontSize:15 }}>{p.flag}</span>
+                  <span style={{ fontWeight:700, color:'#e5e7eb' }}>{p.name}</span>
+                </td>
+                <td style={{ padding:'9px 12px', color:'#6b7280' }}>{p.country}</td>
+                <td style={{ padding:'9px 12px', color:'#6b7280' }}>{p.role}</td>
+                <td style={{ padding:'9px 14px', textAlign:'center' }}>
+                  <span style={{ fontWeight:900, fontSize:16, color:tier.color }}>{ovr}</span>
+                </td>
+                <td style={{ padding:'9px 14px', textAlign:'center' }}>
+                  <span style={{
+                    fontSize:9, fontWeight:800, letterSpacing:0.5, padding:'2px 8px', borderRadius:10,
+                    background:'rgba(255,255,255,0.06)',
+                    color: yf.badge==='PEAK' ? '#86efac' : yf.badge==='RISING' ? '#93c5fd' : yf.badge==='RETIRED' ? '#ef4444' : '#fdba74'
+                  }}>{yf.badge}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {rows.length === 0 && (
+          <div style={{ padding:'24px', textAlign:'center', color:'#374151', fontSize:13 }}>No players match this filter.</div>
+        )}
+      </div>
+      <div style={{ marginTop:10, fontSize:11, color:'#374151' }}>Click any row to generate that player's card with the current format and year.</div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
    APP
 ═══════════════════════════════════════════════════════════════ */
 function App() {
+  const [activeTab,   setActiveTab]   = useState(2);
+
+  // Generator state
   const [query,       setQuery]       = useState('');
   const [format,      setFormat]      = useState('T20I');
   const [year,        setYear]        = useState(2024);
@@ -766,7 +1226,6 @@ function App() {
   const [collection,  setCollection]  = useState([]);
   const [weights,     setWeights]     = useState({ ...FORMAT_CONFIG['T20I'].weights });
   const [showWeights, setShowWeights] = useState(false);
-  const [viewCard,    setViewCard]    = useState(null);
   const inputRef = useRef(null);
 
   const changeWeight = useCallback((key, val) => setWeights(p => ({ ...p, [key]: val })), []);
@@ -791,26 +1250,15 @@ function App() {
     setWeights({ ...FORMAT_CONFIG[f].weights });
   };
 
-  const handleGenerate = async () => {
-    if (!query.trim()) { setGenError('Enter a player name to generate a card.'); return; }
-    const player = findPlayer(query);
-    if (!player) {
-      setGenError(`"${query}" not found. Try: ${PLAYERS.slice(0,3).map(p=>p.name).join(', ')}…`);
-      return;
-    }
+  const runGenerate = async (player) => {
     setGenerating(true);
     setCard(null);
     setGenError('');
-
-    // Brief compute pause for feel
     await new Promise(r => setTimeout(r, 900));
-
     const result = buildCard(player, format, year, weights);
     setCard(result);
     setIsNew(true);
     setGenerating(false);
-
-    // OVR count-up
     setDisplayOVR(60);
     const target = result.ovr;
     const step   = Math.max(1, Math.ceil((target - 60) / 25));
@@ -820,6 +1268,22 @@ function App() {
       setDisplayOVR(cur);
       if (cur >= target) clearInterval(t);
     }, 35);
+  };
+
+  const handleGenerate = async () => {
+    if (!query.trim()) { setGenError('Enter a player name to generate a card.'); return; }
+    const player = findPlayer(query);
+    if (!player) {
+      setGenError(`"${query}" not found. Try: ${PLAYERS.slice(0,3).map(p=>p.name).join(', ')}…`);
+      return;
+    }
+    await runGenerate(player);
+  };
+
+  const handleSelectFromDB = (player) => {
+    setQuery(player.name);
+    window.scrollTo({ top:0, behavior:'smooth' });
+    runGenerate(player);
   };
 
   const saveCard = () => {
@@ -833,149 +1297,179 @@ function App() {
   return (
     <div style={{ display:'flex', minHeight:'100vh', flexDirection:'column' }}>
 
-      {/* ── HEADER ── */}
-      <div style={{ background:'#0a1220', borderBottom:'1px solid rgba(255,255,255,0.05)', padding:'14px 28px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <div>
-          <span style={{ fontSize:20, fontWeight:900, letterSpacing:-0.5 }}>🏏 Cricket Card Generator</span>
-          <span style={{ fontSize:12, color:'#4b5563', marginLeft:14 }}>{PLAYERS.length} players · 7 pillars · 7 formats · year-adjusted</span>
+      {/* ── HEADER + TAB NAV ── */}
+      <div style={{ background:'#0a1220', borderBottom:'1px solid rgba(255,255,255,0.06)', position:'sticky', top:0, zIndex:100 }}>
+        <div style={{ padding:'12px 28px 0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div>
+            <span style={{ fontSize:18, fontWeight:900, letterSpacing:-0.5 }}>🏏 Cricket Card Generator</span>
+            <span style={{ fontSize:11, color:'#374151', marginLeft:14 }}>{PLAYERS.length} players · 7 pillars · 7 formats</span>
+          </div>
+          {activeTab === 2 && (
+            <button onClick={() => setShowWeights(true)} style={{
+              padding:'6px 14px', fontSize:12, fontWeight:700, borderRadius:8,
+              background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', color:'#9ca3af'
+            }}>⚙️ Adjust Weights</button>
+          )}
         </div>
-        <button onClick={() => setShowWeights(true)} style={{
-          padding:'7px 16px', fontSize:12, fontWeight:700, borderRadius:8,
-          background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', color:'#9ca3af'
-        }}>⚙️ Adjust Weights</button>
+        <div style={{ display:'flex', padding:'0 18px', marginTop:2 }}>
+          {[[0,'📐 Design Approach'],[1,'📖 How to Use'],[2,'⚡ Generator']].map(([idx, label]) => (
+            <button key={idx}
+              className={`tab-nav-btn${activeTab===idx?' active':''}`}
+              onClick={() => setActiveTab(idx)}>
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* ── GENERATOR PANEL ── */}
-      <div style={{ background:'#0d1628', borderBottom:'1px solid rgba(255,255,255,0.05)', padding:'28px 28px 24px' }}>
+      {/* ── TAB CONTENT ── */}
+      {activeTab === 0 && <DesignTab />}
+      {activeTab === 1 && <HowToTab />}
+      {activeTab === 2 && (
+        <div style={{ display:'flex', flexDirection:'column', flex:1 }}>
 
-        {/* Search row */}
-        <div style={{ display:'flex', gap:12, alignItems:'flex-start', flexWrap:'wrap', marginBottom:18 }}>
-          <div style={{ position:'relative', flex:1, minWidth:260, maxWidth:380 }}>
-            <input
-              ref={inputRef} type="text"
-              placeholder="Player name (e.g. Virat Kohli, Warne)…"
-              value={query}
-              onChange={e => handleQueryChange(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { setShowSugg(false); handleGenerate(); } if (e.key === 'Escape') setShowSugg(false); }}
-              onFocus={() => query.length >= 2 && setShowSugg(suggestions.length > 0)}
-              style={{
-                width:'100%', padding:'11px 16px', fontSize:14, borderRadius:10,
-                background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)',
-                color:'#e5e7eb'
-              }}
-            />
-            {showSugg && (
-              <div style={{
-                position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:200,
-                background:'#131f38', border:'1px solid rgba(255,255,255,0.08)',
-                borderRadius:10, overflow:'hidden', boxShadow:'0 8px 32px rgba(0,0,0,0.6)'
-              }}>
-                {suggestions.map(p => (
-                  <div key={p.id} className="suggestion-item"
-                    onMouseDown={() => selectSuggestion(p)}
-                    style={{ padding:'10px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:10, fontSize:13 }}>
-                    <span style={{ fontSize:20 }}>{p.flag}</span>
-                    <div>
-                      <div style={{ fontWeight:700 }}>{p.name}</div>
-                      <div style={{ fontSize:11, color:'#6b7280' }}>{p.country} · {p.role}</div>
-                    </div>
+          {/* ── GENERATOR PANEL ── */}
+          <div style={{ background:'#0d1628', borderBottom:'1px solid rgba(255,255,255,0.05)', padding:'24px 28px 20px' }}>
+            {/* Search + Year + Generate */}
+            <div style={{ display:'flex', gap:12, alignItems:'flex-start', flexWrap:'wrap', marginBottom:16 }}>
+              <div style={{ position:'relative', flex:1, minWidth:260, maxWidth:380 }}>
+                <input
+                  ref={inputRef} type="text"
+                  placeholder="Player name (e.g. Virat Kohli, Warne)…"
+                  value={query}
+                  onChange={e => handleQueryChange(e.target.value)}
+                  onKeyDown={e => { if (e.key==='Enter') { setShowSugg(false); handleGenerate(); } if (e.key==='Escape') setShowSugg(false); }}
+                  onFocus={() => query.length >= 2 && setShowSugg(suggestions.length > 0)}
+                  style={{
+                    width:'100%', padding:'11px 16px', fontSize:14, borderRadius:10,
+                    background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)',
+                    color:'#e5e7eb'
+                  }}
+                />
+                {showSugg && (
+                  <div style={{
+                    position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:200,
+                    background:'#131f38', border:'1px solid rgba(255,255,255,0.08)',
+                    borderRadius:10, overflow:'hidden', boxShadow:'0 8px 32px rgba(0,0,0,0.6)'
+                  }}>
+                    {suggestions.map(p => (
+                      <div key={p.id} className="suggestion-item"
+                        onMouseDown={() => selectSuggestion(p)}
+                        style={{ padding:'10px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:10, fontSize:13 }}>
+                        <span style={{ fontSize:20 }}>{p.flag}</span>
+                        <div>
+                          <div style={{ fontWeight:700 }}>{p.name}</div>
+                          <div style={{ fontSize:11, color:'#6b7280' }}>{p.country} · {p.role}</div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
+              </div>
+
+              {/* Year selector */}
+              <div style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:10, padding:'8px 14px', minWidth:160 }}>
+                <div style={{ fontSize:10, color:'#6b7280', letterSpacing:1, marginBottom:6 }}>YEAR</div>
+                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  <button onClick={() => setYear(y => Math.max(1985, y - 1))} style={{ background:'rgba(255,255,255,0.08)', border:'none', color:'#9ca3af', width:24, height:24, borderRadius:5, fontSize:14, display:'flex', alignItems:'center', justifyContent:'center' }}>‹</button>
+                  <span style={{ fontWeight:900, fontSize:18, minWidth:44, textAlign:'center' }}>{year}</span>
+                  <button onClick={() => setYear(y => Math.min(2026, y + 1))} style={{ background:'rgba(255,255,255,0.08)', border:'none', color:'#9ca3af', width:24, height:24, borderRadius:5, fontSize:14, display:'flex', alignItems:'center', justifyContent:'center' }}>›</button>
+                </div>
+                <input type="range" min={1985} max={2026} value={year} onChange={e=>setYear(+e.target.value)}
+                  style={{ accentColor:'#a855f7', marginTop:6 }} />
+              </div>
+
+              {/* Generate button */}
+              <button className="gen-btn" onClick={handleGenerate} disabled={generating} style={{
+                padding:'0 28px', height:52, fontSize:15, fontWeight:800, borderRadius:10,
+                background:'linear-gradient(135deg,#1d4ed8,#7c3aed)',
+                border:'none', color:'#fff', letterSpacing:0.5,
+                boxShadow:'0 4px 20px rgba(124,58,237,0.35)',
+                display:'flex', alignItems:'center', gap:10
+              }}>
+                {generating ? (
+                  <>
+                    <span style={{ display:'inline-block', width:16, height:16, border:'2px solid rgba(255,255,255,0.3)', borderTopColor:'#fff', borderRadius:'50%', animation:'spin 0.7s linear infinite' }} />
+                    Computing…
+                  </>
+                ) : '⚡ Generate Card'}
+              </button>
+            </div>
+
+            {/* Format tabs */}
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+              {FORMAT_KEYS.map(f => {
+                const fc = FORMAT_CONFIG[f];
+                const active = format === f;
+                return (
+                  <button key={f} className="format-btn" onClick={() => handleFormatChange(f)} style={{
+                    padding:'7px 16px', fontSize:12, fontWeight:700, borderRadius:8,
+                    background: active ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.04)',
+                    border: `1px solid ${active ? '#6366f1' : 'rgba(255,255,255,0.08)'}`,
+                    color: active ? '#818cf8' : '#6b7280',
+                  }}>{fc.emoji} {fc.label}</button>
+                );
+              })}
+            </div>
+
+            {genError && (
+              <div style={{ marginTop:12, fontSize:12, color:'#f87171', background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.2)', padding:'8px 14px', borderRadius:8 }}>
+                {genError}
               </div>
             )}
           </div>
 
-          {/* Year selector */}
-          <div style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:10, padding:'8px 14px', minWidth:160 }}>
-            <div style={{ fontSize:10, color:'#6b7280', letterSpacing:1, marginBottom:6 }}>YEAR</div>
-            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-              <button onClick={() => setYear(y => Math.max(1985, y - 1))} style={{ background:'rgba(255,255,255,0.08)', border:'none', color:'#9ca3af', width:24, height:24, borderRadius:5, fontSize:14, display:'flex', alignItems:'center', justifyContent:'center' }}>‹</button>
-              <span style={{ fontWeight:900, fontSize:18, minWidth:44, textAlign:'center' }}>{year}</span>
-              <button onClick={() => setYear(y => Math.min(2026, y + 1))} style={{ background:'rgba(255,255,255,0.08)', border:'none', color:'#9ca3af', width:24, height:24, borderRadius:5, fontSize:14, display:'flex', alignItems:'center', justifyContent:'center' }}>›</button>
-            </div>
-            <input type="range" min={1985} max={2026} value={year} onChange={e=>setYear(+e.target.value)}
-              style={{ accentColor:'#a855f7', marginTop:6 }} />
-          </div>
+          {/* ── RESULT AREA ── */}
+          <div style={{ flex:1, padding:'28px 28px 0' }}>
+            {/* Generated card + breakdown */}
+            {card && (
+              <div style={{ display:'flex', gap:32, flexWrap:'wrap', marginBottom:32, alignItems:'flex-start' }}>
+                <div style={{ display:'flex', flexDirection:'column', gap:14, alignItems:'center' }}>
+                  <BigCard card={card} displayOVR={displayOVR} isNew={isNew} />
+                  <button onClick={saveCard} style={{
+                    padding:'9px 20px', fontSize:12, fontWeight:700, borderRadius:8,
+                    background:'rgba(34,197,94,0.12)', border:'1px solid rgba(34,197,94,0.25)', color:'#22c55e'
+                  }}>+ Save to Collection</button>
+                </div>
+                <BreakdownPanel card={card} />
+              </div>
+            )}
 
-          {/* Generate button */}
-          <button className="gen-btn" onClick={handleGenerate} disabled={generating} style={{
-            padding:'0 28px', height:52, fontSize:15, fontWeight:800, borderRadius:10,
-            background:'linear-gradient(135deg,#1d4ed8,#7c3aed)',
-            border:'none', color:'#fff', letterSpacing:0.5,
-            boxShadow:'0 4px 20px rgba(124,58,237,0.35)',
-            display:'flex', alignItems:'center', gap:10
-          }}>
-            {generating ? (
-              <>
-                <span style={{ display:'inline-block', width:16, height:16, border:'2px solid rgba(255,255,255,0.3)', borderTopColor:'#fff', borderRadius:'50%', animation:'spin 0.7s linear infinite' }} />
-                Computing…
-              </>
-            ) : '⚡ Generate Card'}
-          </button>
-        </div>
+            {/* Empty state */}
+            {!card && !generating && (
+              <div style={{ textAlign:'center', padding:'40px 0', color:'#1f2937' }}>
+                <div style={{ fontSize:48, marginBottom:12 }}>🏏</div>
+                <div style={{ fontSize:15, fontWeight:700, color:'#374151', marginBottom:6 }}>Enter a player name and click Generate</div>
+                <div style={{ fontSize:13, color:'#1f2937' }}>Or click any row in the database below</div>
+              </div>
+            )}
 
-        {/* Format tabs */}
-        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-          {FORMAT_KEYS.map(f => {
-            const fc = FORMAT_CONFIG[f];
-            const active = format === f;
-            return (
-              <button key={f} className="format-btn" onClick={() => handleFormatChange(f)} style={{
-                padding:'7px 16px', fontSize:12, fontWeight:700, borderRadius:8,
-                background: active ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${active ? '#6366f1' : 'rgba(255,255,255,0.08)'}`,
-                color: active ? '#818cf8' : '#6b7280',
-              }}>{fc.emoji} {fc.label}</button>
-            );
-          })}
-        </div>
+            {/* ── COLLECTION ── */}
+            {collection.length > 0 && (
+              <div style={{ marginBottom:32 }}>
+                <div style={{ fontSize:11, color:'#4b5563', letterSpacing:2, fontWeight:700, textTransform:'uppercase', marginBottom:14 }}>
+                  Your Collection ({collection.length})
+                </div>
+                <div className="collection-scroll">
+                  {collection.map((c, i) => (
+                    <CollectionMini key={i} card={c} onSelect={c => {
+                      setCard(c); setDisplayOVR(c.ovr); setIsNew(false);
+                      window.scrollTo({ top:0, behavior:'smooth' });
+                    }} />
+                  ))}
+                </div>
+              </div>
+            )}
 
-        {/* Error */}
-        {genError && (
-          <div style={{ marginTop:12, fontSize:12, color:'#f87171', background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.2)', padding:'8px 14px', borderRadius:8 }}>
-            {genError}
-          </div>
-        )}
-      </div>
+            {/* ── PLAYER DATABASE ── */}
+            <PlayerDatabase
+              format={format}
+              year={year}
+              weights={weights}
+              onSelectPlayer={handleSelectFromDB}
+            />
 
-      {/* ── RESULT AREA ── */}
-      <div style={{ flex:1, padding:'28px 28px 0', overflowY:'auto' }}>
-        {/* Generated card + breakdown */}
-        {card && (
-          <div style={{ display:'flex', gap:32, flexWrap:'wrap', marginBottom:32, alignItems:'flex-start' }}>
-            <div style={{ display:'flex', flexDirection:'column', gap:14, alignItems:'center' }}>
-              <BigCard card={card} displayOVR={displayOVR} isNew={isNew} />
-              <button onClick={saveCard} style={{
-                padding:'9px 20px', fontSize:12, fontWeight:700, borderRadius:8,
-                background:'rgba(34,197,94,0.12)', border:'1px solid rgba(34,197,94,0.25)', color:'#22c55e'
-              }}>+ Save to Collection</button>
-            </div>
-            <BreakdownPanel card={card} />
-          </div>
-        )}
-
-        {/* Empty state */}
-        {!card && !generating && (
-          <div style={{ textAlign:'center', padding:'48px 0', color:'#1f2937' }}>
-            <div style={{ fontSize:48, marginBottom:12 }}>🏏</div>
-            <div style={{ fontSize:16, fontWeight:700, color:'#374151', marginBottom:6 }}>Enter a player name and click Generate</div>
-            <div style={{ fontSize:13, color:'#1f2937' }}>
-              Try: Virat Kohli · AB de Villiers · Shane Warne · MS Dhoni · Rashid Khan
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── COLLECTION ── */}
-      {collection.length > 0 && (
-        <div style={{ padding:'0 28px 28px', marginTop:8 }}>
-          <div style={{ fontSize:11, color:'#4b5563', letterSpacing:2, fontWeight:700, textTransform:'uppercase', marginBottom:14 }}>
-            Your Collection ({collection.length})
-          </div>
-          <div className="collection-scroll">
-            {collection.map((c, i) => (
-              <CollectionMini key={i} card={c} onSelect={c => { setCard(c); setDisplayOVR(c.ovr); setIsNew(false); setViewCard(c); window.scrollTo({top:0,behavior:'smooth'}); }} />
-            ))}
+            <div style={{ height:48 }} />
           </div>
         </div>
       )}
