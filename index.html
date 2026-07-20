@@ -81,7 +81,7 @@ const PLAYERS = [
   /* ── INDIA ── */
   { id:1,  name:"Virat Kohli",      country:"India",       code:"IND", flag:"🇮🇳", role:"Batsman",
     ay:[2008,2026], py:[2014,2019], iw:1.0,
-    note:"Six years at #1. Identity card of modern cricket — defined by fan expectation as much as data.",
+    note:"Six years at #1. Identity card of modern cricket, defined by fan expectation as much as data.",
     p:{avg:88,sr:75,bnd:72,icc:95,pop:100,rr:95,oq:92,pace:88,spin:90,form:72},
     fo:{ Test:{avg:95,sr:58,bnd:62,icc:97,oq:94}, ODI:{avg:93,sr:78,bnd:74,icc:95} } },
 
@@ -105,7 +105,7 @@ const PLAYERS = [
 
   { id:5,  name:"Suryakumar Yadav", country:"India",       code:"IND", flag:"🇮🇳", role:"Batsman",
     ay:[2021,2026], py:[2022,2026], iw:0.95,
-    note:"170+ sustained SR — the highest in modern T20I top-order batting. Boundary% is the stat that doesn't average away.",
+    note:"170+ sustained SR, the highest in modern T20I top-order batting. Boundary% is the stat that doesn't average away.",
     p:{avg:78,sr:98,bnd:98,icc:95,pop:82,rr:82,oq:85,pace:93,spin:88,form:87},
     fo:{ Test:{avg:50,sr:60,bnd:60,icc:20,rr:20,oq:20}, ODI:{avg:72,sr:90,bnd:90} } },
 
@@ -142,7 +142,7 @@ const PLAYERS = [
   /* ── PAKISTAN ── */
   { id:11, name:"Babar Azam",       country:"Pakistan",    code:"PAK", flag:"🇵🇰", role:"Batsman",
     ay:[2016,2026], py:[2021,2023], iw:1.0,
-    note:"50+ T20I average with extraordinary consistency — textbook top-order reliability with a moderate SR ceiling.",
+    note:"50+ T20I average with extraordinary consistency. Textbook top-order reliability with a moderate SR ceiling.",
     p:{avg:85,sr:72,bnd:68,icc:90,pop:88,rr:93,oq:82,pace:85,spin:82,form:75},
     fo:{ ODI:{avg:90,sr:78,bnd:72,icc:92}, Test:{avg:88,sr:62,bnd:62,icc:88,oq:82} } },
 
@@ -272,7 +272,7 @@ const PLAYERS = [
   /* ── WEST INDIES ── */
   { id:32, name:"Brian Lara",       country:"West Indies", code:"WI",  flag:"🏝️", role:"Batsman",
     ay:[1990,2006], py:[1994,2004], iw:1.0,
-    note:"Test world record holder. The artist card — numbers that look impossible to reproduce.",
+    note:"Test world record holder. The artist card: numbers that look impossible to reproduce.",
     p:{avg:85,sr:72,bnd:72,icc:88,pop:88,rr:88,oq:90,pace:85,spin:88,form:10},
     fo:{ Test:{avg:97,sr:55,bnd:68,icc:98,oq:92}, ODI:{avg:88,sr:74,bnd:72,icc:92} } },
 
@@ -532,6 +532,26 @@ function buildCard(player, format, year, userWeights) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   LEAGUE ELIGIBILITY RULES
+   BCCI prohibits Indian players from participating in any foreign
+   domestic T20 league. BBL, PSL and SA20 are therefore restricted.
+═══════════════════════════════════════════════════════════════ */
+const FORMAT_RESTRICTIONS = {
+  BBL:  { excludeCountries:['India'], note:'BCCI rules prohibit Indian players from participating in the BBL.' },
+  PSL:  { excludeCountries:['India'], note:'BCCI rules and bilateral relations prohibit Indian players from the PSL.' },
+  SA20: { excludeCountries:['India'], note:'BCCI rules prohibit Indian players from participating in SA20.' },
+};
+
+function isPlayerEligible(player, format) {
+  const r = FORMAT_RESTRICTIONS[format];
+  if (!r) return { ok:true, reason:'' };
+  if (r.excludeCountries && r.excludeCountries.includes(player.country)) {
+    return { ok:false, reason:`${player.name} cannot play in ${format}. ${r.note}` };
+  }
+  return { ok:true, reason:'' };
+}
+
+/* ═══════════════════════════════════════════════════════════════
    SHARED COMPONENTS
 ═══════════════════════════════════════════════════════════════ */
 
@@ -687,7 +707,7 @@ function BreakdownPanel({ card }) {
         ))}
       </div>
       <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#374151', marginTop:12 }}>
-        <span>Year factor: <strong style={{ color:'#6b7280' }}>{card.yf.factor.toFixed(2)}× — {card.yf.note}</strong></span>
+        <span>Year factor: <strong style={{ color:'#6b7280' }}>{card.yf.factor.toFixed(2)}x ({card.yf.note})</strong></span>
         <span>OVR 60–99</span>
       </div>
     </div>
@@ -740,122 +760,185 @@ function WeightModal({ weights, format, onChange, onClose, onReset }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   TAB 1 — DESIGN APPROACH
+   TAB 1: DESIGN APPROACH (blog)
 ═══════════════════════════════════════════════════════════════ */
 function DesignTab() {
   return (
-    <div style={{ maxWidth:920, margin:'0 auto', padding:'40px 28px 60px' }}>
+    <div style={{ maxWidth:720, margin:'0 auto', padding:'44px 28px 72px' }}>
+
+      {/* HEADER */}
+      <div style={{ marginBottom:52 }}>
+        <div style={{ fontSize:10, letterSpacing:2, color:'#6366f1', fontWeight:700, marginBottom:14, textTransform:'uppercase' }}>
+          Systems and Economy Design
+        </div>
+        <h1 style={{ fontSize:32, fontWeight:900, marginBottom:14, lineHeight:1.2, color:'#f1f5f9' }}>
+          Player Card Rating System
+        </h1>
+        <p style={{ fontSize:16, color:'#6b7280', lineHeight:1.7 }}>
+          Turning 500 real cricketers into cards that feel right to fans and balance right in a match.
+        </p>
+      </div>
+
+      <hr style={{ border:'none', borderTop:'1px solid rgba(255,255,255,0.07)', marginBottom:48 }} />
 
       {/* THE PROBLEM */}
       <section style={{ marginBottom:52 }}>
-        <div style={{ fontSize:10, letterSpacing:2, color:'#6366f1', fontWeight:700, marginBottom:10, textTransform:'uppercase' }}>The Problem</div>
-        <h2 style={{ fontSize:26, fontWeight:900, marginBottom:16, lineHeight:1.3 }}>What number goes on the card?</h2>
-        <p style={{ color:'#9ca3af', lineHeight:1.8, fontSize:13, marginBottom:16 }}>
-          Any sports collection game has to answer one question before it can answer anything else. Get it wrong in one direction and the game is statistically correct but feels broken. Get it wrong in the other and it feels good but the meta collapses — because ratings stop tracking anything a player can reason about.
+        <h2 style={{ fontSize:22, fontWeight:800, marginBottom:18, color:'#f1f5f9' }}>The problem</h2>
+        <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85, marginBottom:14 }}>
+          Any sports collection game has to answer one question before it can answer anything else: what number goes on the card?
         </p>
-        <div style={{ background:'rgba(239,68,68,0.07)', border:'1px solid rgba(239,68,68,0.18)', borderRadius:10, padding:'14px 18px', marginBottom:20 }}>
-          <div style={{ fontSize:12, color:'#f87171', fontWeight:700, marginBottom:6 }}>The clearest failure case</div>
-          <div style={{ color:'#d1d5db', lineHeight:1.7, fontSize:13 }}>
-            Build OVR directly off ICC rankings and <strong>Abhishek Sharma outranks Virat Kohli</strong> in T20I. That is accurate to current form and completely unacceptable to a cricket fan. ICC rankings are a form tracker. A card rating is a claim about a player's identity.
-          </div>
-        </div>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(155px, 1fr))', gap:10 }}>
-          {[
-            ['1','One OVR per player per format'],
-            ['2','Credible to a fan with an opinion'],
-            ['3','Derived from real data, not assigned'],
-            ['4','Reproducible across 500+ players'],
-            ['5','Explainable in one sentence per card'],
-          ].map(([n, t]) => (
-            <div key={n} className="design-card" style={{ display:'flex', gap:10, alignItems:'flex-start' }}>
-              <span style={{ fontSize:16, fontWeight:900, color:'#6366f1', lineHeight:1.2, flexShrink:0 }}>{n}</span>
-              <span style={{ fontSize:11, color:'#9ca3af', lineHeight:1.5 }}>{t}</span>
-            </div>
-          ))}
-        </div>
+        <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85, marginBottom:14 }}>
+          Get it wrong in one direction and the game is statistically correct but feels broken. Get it wrong in the other and it feels good but the meta collapses, because ratings stop tracking anything a player can reason about.
+        </p>
+        <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85, marginBottom:20 }}>
+          The clearest version of this failure: if you build OVR directly off ICC rankings, Abhishek Sharma outranks Virat Kohli in T20I. That is accurate to current form and completely unacceptable to a cricket fan looking at a card. ICC rankings are a form tracker. A card rating is a claim about a player's identity.
+        </p>
+        <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85, marginBottom:14 }}>So the design brief became:</p>
+        <ol style={{ paddingLeft:22, color:'#d1d5db', fontSize:14, lineHeight:2 }}>
+          <li>A single visible OVR per player, per format</li>
+          <li>Credible to a fan who already has an opinion about that player</li>
+          <li>Derived from real data, not hand-assigned</li>
+          <li>Reproducible across 500+ players without manual curation</li>
+          <li>Explainable in one sentence per card</li>
+        </ol>
       </section>
+
+      <hr style={{ border:'none', borderTop:'1px solid rgba(255,255,255,0.07)', marginBottom:48 }} />
 
       {/* WHY ONE STAT FAILS */}
       <section style={{ marginBottom:52 }}>
-        <div style={{ fontSize:10, letterSpacing:2, color:'#22c55e', fontWeight:700, marginBottom:10, textTransform:'uppercase' }}>Why One Stat Is Never Enough</div>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))', gap:12 }}>
-          {[
-            ['Batting Average alone','Fails in T20. A 45 avg at 118 SR is a worse card than a 28 avg at 165 SR.','#ef4444'],
-            ['Strike Rate alone','Rewards tail-end cameos. A #9 with 6 innings at 190 SR beats a top-order anchor every time.','#f97316'],
-            ['Any single metric','Every metric has a player it embarrasses. OVR must be a composite of separate named claims.','#eab308'],
-          ].map(([title, desc, clr]) => (
-            <div key={title} className="design-card" style={{ borderLeft:`3px solid ${clr}` }}>
-              <div style={{ fontSize:12, fontWeight:800, color:clr, marginBottom:6 }}>{title} fails</div>
-              <div style={{ fontSize:12, color:'#9ca3af', lineHeight:1.6 }}>{desc}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* SEVEN PILLARS */}
-      <section style={{ marginBottom:52 }}>
-        <div style={{ fontSize:10, letterSpacing:2, color:'#a855f7', fontWeight:700, marginBottom:10, textTransform:'uppercase' }}>The Seven Pillars</div>
-        <h3 style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Each pillar answers a different question about the player</h3>
-        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-          {[
-            { key:'careerOutput',      label:'Career Output',      weight:25, color:'#22c55e', icon:'📊', q:'How productive is this player over a career?' },
-            { key:'peakICC',           label:'Peak ICC Rating',    weight:20, color:'#a855f7', icon:'🏆', q:'How high did they ever climb?' },
-            { key:'popularity',        label:'Popularity',         weight:15, color:'#f97316', icon:'⭐', q:'Does the fan expect this player to be good?' },
-            { key:'roleReliability',   label:'Role Reliability',   weight:10, color:'#3b82f6', icon:'🎯', q:'Do they show up consistently in their role?' },
-            { key:'oppositionQuality', label:'Opposition Quality', weight:10, color:'#ef4444', icon:'⚔️', q:'Did they do it against real teams?' },
-            { key:'matchupProfile',    label:'Matchup Profile',    weight:10, color:'#06b6d4', icon:'🔄', q:'Are they good against both pace and spin?' },
-            { key:'currentForm',       label:'Current Form',       weight:10, color:'#eab308', icon:'📈', q:'Are they good right now?' },
-          ].map(({ label, weight, color, icon, q }) => (
-            <div key={label} className="design-card" style={{ display:'flex', alignItems:'center', gap:16 }}>
-              <div style={{ width:38, textAlign:'center', fontSize:20, flexShrink:0 }}>{icon}</div>
-              <div style={{ flex:1 }}>
-                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}>
-                  <span style={{ fontSize:13, fontWeight:800, color }}>{label}</span>
-                  <span style={{ fontSize:14, fontWeight:900, color }}>{weight}%</span>
-                </div>
-                <div style={{ height:5, borderRadius:3, background:'rgba(255,255,255,0.05)', marginBottom:5, overflow:'hidden' }}>
-                  <div style={{ width:`${weight * 2}%`, height:'100%', background:color, borderRadius:3 }} />
-                </div>
-                <div style={{ fontSize:11, color:'#6b7280' }}>{q}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* CAREER OUTPUT BREAKDOWN */}
-      <section style={{ marginBottom:52 }}>
-        <div style={{ fontSize:10, letterSpacing:2, color:'#22c55e', fontWeight:700, marginBottom:10, textTransform:'uppercase' }}>Career Output (25%) — Internal Breakdown</div>
-        <p style={{ color:'#9ca3af', fontSize:13, lineHeight:1.8, marginBottom:16 }}>
-          The largest pillar has three sub-inputs. Strike rate carries the most weight because the target product is a short-format game — scoring rate dominates match results. Boundary percentage is included separately because it captures ceiling in a way that strike rate averages away.
+        <h2 style={{ fontSize:22, fontWeight:800, marginBottom:18, color:'#f1f5f9' }}>Why one stat is not enough</h2>
+        <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85, marginBottom:14 }}>
+          The first instinct is batting average. It fails immediately in T20, where a 45 average at 118 strike rate is a worse card than a 28 average at 165.
         </p>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:12, marginBottom:12 }}>
-          {[
-            { label:'Batting Avg', pct:35, band:'22–52 range', color:'#22c55e', note:'T20I sub-weight' },
-            { label:'Strike Rate', pct:40, band:'118–172 range', color:'#10b981', note:'Heaviest (short formats)' },
-            { label:'Boundary %', pct:25, band:'25–65 range', color:'#059669', note:'Ceiling indicator' },
-          ].map(({ label, pct, band, color, note }) => (
-            <div key={label} className="design-card" style={{ textAlign:'center' }}>
-              <div style={{ fontSize:34, fontWeight:900, color, marginBottom:4 }}>{pct}%</div>
-              <div style={{ fontSize:12, fontWeight:700, color:'#d1d5db', marginBottom:4 }}>{label}</div>
-              <div style={{ fontSize:10, color:'#4b5563', marginBottom:6 }}>{band}</div>
-              <div style={{ fontSize:9, color:'#374151', fontStyle:'italic' }}>{note}</div>
-            </div>
-          ))}
+        <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85, marginBottom:14 }}>
+          Strike rate alone fails too. It rewards tail-end cameos. A number 9 with 6 innings and a 190 SR will beat a top-order anchor every time.
+        </p>
+        <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85 }}>
+          Every single metric I tested had a player it embarrassed. The fix was not a better metric. It was accepting that OVR is a composite of separate claims about a player, and making each claim a named, weighted input.
+        </p>
+      </section>
+
+      <hr style={{ border:'none', borderTop:'1px solid rgba(255,255,255,0.07)', marginBottom:48 }} />
+
+      {/* THE SEVEN PILLARS */}
+      <section style={{ marginBottom:52 }}>
+        <h2 style={{ fontSize:22, fontWeight:800, marginBottom:10, color:'#f1f5f9' }}>The seven pillars</h2>
+        <p style={{ color:'#6b7280', fontSize:13, lineHeight:1.7, marginBottom:28 }}>
+          Every pillar is normalised to 0-100 against fixed historical floors and ceilings, then combined and mapped onto a bounded OVR scale.
+        </p>
+
+        {/* Summary table */}
+        <div style={{ overflowX:'auto', borderRadius:10, border:'1px solid rgba(255,255,255,0.07)', marginBottom:40 }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+            <thead>
+              <tr style={{ background:'rgba(255,255,255,0.025)', borderBottom:'1px solid rgba(255,255,255,0.08)' }}>
+                <th style={{ padding:'10px 14px', textAlign:'left', color:'#6b7280', fontWeight:600 }}>#</th>
+                <th style={{ padding:'10px 14px', textAlign:'left', color:'#6b7280', fontWeight:600 }}>Pillar</th>
+                <th style={{ padding:'10px 14px', textAlign:'center', color:'#6b7280', fontWeight:600 }}>Weight</th>
+                <th style={{ padding:'10px 14px', textAlign:'left', color:'#6b7280', fontWeight:600 }}>What it answers</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                ['1','📊 Career Output',      '25%','#22c55e','How productive is this player over a career?'],
+                ['2','🏆 Peak ICC Rating',    '20%','#a855f7','How high did they ever climb?'],
+                ['3','⭐ Popularity',         '15%','#f97316','Does the fan expect this player to be good?'],
+                ['4','🎯 Role Reliability',   '10%','#3b82f6','Do they show up consistently in their role?'],
+                ['5','⚔️ Opposition Quality', '10%','#ef4444','Did they do it against real teams?'],
+                ['6','🔄 Matchup Profile',    '10%','#06b6d4','Are they good against both pace and spin?'],
+                ['7','📈 Current Form',       '10%','#eab308','Are they good right now?'],
+              ].map(([n, name, weight, color, q]) => (
+                <tr key={n} style={{ borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding:'10px 14px', color:'#374151', fontWeight:600 }}>{n}</td>
+                  <td style={{ padding:'10px 14px', color, fontWeight:700 }}>{name}</td>
+                  <td style={{ padding:'10px 14px', textAlign:'center', fontWeight:900, color }}>{weight}</td>
+                  <td style={{ padding:'10px 14px', color:'#9ca3af' }}>{q}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        <div style={{ fontSize:11, color:'#4b5563', padding:'10px 14px', background:'rgba(255,255,255,0.02)', borderRadius:8, lineHeight:1.7 }}>
-          Sub-weights shift per format. In Test, batting average rises to 60% of Career Output (vs 35% in T20I). In IPL, strike rate rises to 45%.
+
+        {/* Pillar detail write-ups */}
+        <div style={{ display:'flex', flexDirection:'column', gap:36 }}>
+
+          <div>
+            <h3 style={{ fontSize:16, fontWeight:800, color:'#22c55e', marginBottom:10 }}>1. Career Output (25%)</h3>
+            <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85, marginBottom:10 }}>Three sub-inputs, weighted internally:</p>
+            <ul style={{ paddingLeft:22, color:'#d1d5db', fontSize:14, lineHeight:2, marginBottom:10 }}>
+              <li>Batting average, normalised across a 22 to 52 band, 35% of the pillar</li>
+              <li>Strike rate, normalised across 118 to 172, 40% of the pillar</li>
+              <li>Boundary percentage, normalised across 25 to 65, 25% of the pillar</li>
+            </ul>
+            <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85 }}>
+              Strike rate carries the most weight because the target product is a short-format game. In a 2-over match, scoring rate is the dominant contributor to a result. Boundary percentage is included separately because it captures ceiling in a way that strike rate averages away.
+            </p>
+          </div>
+
+          <div>
+            <h3 style={{ fontSize:16, fontWeight:800, color:'#a855f7', marginBottom:10 }}>2. Peak ICC Rating (20%)</h3>
+            <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85 }}>
+              Normalised across a 700 to 920 band. This is the legacy anchor. It is what stops a player who dominated for six years from being demoted because of a bad eighteen months. It is also the single pillar that most closely matches how fans actually rank players in conversation.
+            </p>
+          </div>
+
+          <div>
+            <h3 style={{ fontSize:16, fontWeight:800, color:'#f97316', marginBottom:10 }}>3. Popularity (15%)</h3>
+            <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85, marginBottom:10 }}>
+              Log-scaled Instagram following. This is the pillar that gets the most pushback, so the reasoning matters.
+            </p>
+            <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85, marginBottom:10 }}>
+              A card rating is a product surface, not a scientific claim. If the game tells a player that a household name is a 74, the player does not conclude the household name has declined. They conclude the rating system is broken and stop trusting every other number in the game. Popularity is included as an explicit, bounded, visible input rather than as a thumb on the scale during manual review.
+            </p>
+            <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85 }}>
+              It is log-scaled because follower counts span three orders of magnitude and a linear scale would let two or three global superstars flatten everyone else into noise.
+            </p>
+          </div>
+
+          <div>
+            <h3 style={{ fontSize:16, fontWeight:800, color:'#3b82f6', marginBottom:10 }}>4. Role Reliability (10%)</h3>
+            <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85 }}>
+              Combines how often the player is in the XI, not-out percentage, and batting position consistency. This is what separates a fixed top-order batter from a floating utility pick with a similar average.
+            </p>
+          </div>
+
+          <div>
+            <h3 style={{ fontSize:16, fontWeight:800, color:'#ef4444', marginBottom:10 }}>5. Opposition Quality (10%)</h3>
+            <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85 }}>
+              Records are filtered to performances against the top 10 ranked opposition, then weighted by country strength. Runs against a full-strength attack are worth more than runs padded against associate nations.
+            </p>
+          </div>
+
+          <div>
+            <h3 style={{ fontSize:16, fontWeight:800, color:'#06b6d4', marginBottom:10 }}>6. Matchup Profile (10%)</h3>
+            <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85 }}>
+              Separate vs pace and vs spin ratings, averaged into the pillar. These are also surfaced on the card as visible attributes rather than being buried inside OVR, because matchup is actionable information for squad building and OVR is not.
+            </p>
+          </div>
+
+          <div>
+            <h3 style={{ fontSize:16, fontWeight:800, color:'#eab308', marginBottom:10 }}>7. Current Form (10%)</h3>
+            <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85 }}>
+              Current ICC rating. Deliberately the smallest weight it can be while still moving the number. Form should make a card breathe across a season, not rewrite a player's identity. This is the only pillar adjusted by the year slider.
+            </p>
+          </div>
         </div>
       </section>
+
+      <hr style={{ border:'none', borderTop:'1px solid rgba(255,255,255,0.07)', marginBottom:48 }} />
 
       {/* FORMAT WEIGHT MATRIX */}
       <section style={{ marginBottom:52 }}>
-        <div style={{ fontSize:10, letterSpacing:2, color:'#06b6d4', fontWeight:700, marginBottom:10, textTransform:'uppercase' }}>Format Weight Matrix</div>
-        <div style={{ overflowX:'auto', borderRadius:12, border:'1px solid rgba(255,255,255,0.07)' }}>
+        <h2 style={{ fontSize:22, fontWeight:800, marginBottom:10, color:'#f1f5f9' }}>Format weight matrix</h2>
+        <p style={{ color:'#6b7280', fontSize:13, lineHeight:1.7, marginBottom:20 }}>
+          The same seven pillars are used across all formats, but their weights shift significantly. Test buries Popularity and raises average-heavy Career Output. IPL does the opposite.
+        </p>
+        <div style={{ overflowX:'auto', borderRadius:10, border:'1px solid rgba(255,255,255,0.07)' }}>
           <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
             <thead>
               <tr style={{ borderBottom:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.02)' }}>
-                <th style={{ padding:'10px 16px', textAlign:'left', color:'#6b7280', fontWeight:600, whiteSpace:'nowrap' }}>Pillar</th>
+                <th style={{ padding:'10px 14px', textAlign:'left', color:'#6b7280', fontWeight:600, whiteSpace:'nowrap' }}>Pillar</th>
                 {FORMAT_KEYS.map(f => (
                   <th key={f} style={{ padding:'10px 10px', textAlign:'center', color:'#9ca3af', fontWeight:700, whiteSpace:'nowrap' }}>
                     {FORMAT_CONFIG[f].emoji} {f}
@@ -870,7 +953,7 @@ function DesignTab() {
                 const maxVal = Math.max(...vals);
                 return (
                   <tr key={key} style={{ borderBottom:'1px solid rgba(255,255,255,0.04)', background: i%2===0 ? 'rgba(255,255,255,0.01)' : 'transparent' }}>
-                    <td style={{ padding:'10px 16px', color, fontWeight:700, whiteSpace:'nowrap' }}>{icon} {label}</td>
+                    <td style={{ padding:'10px 14px', color, fontWeight:700, whiteSpace:'nowrap' }}>{icon} {label}</td>
                     {vals.map((v, j) => (
                       <td key={j} style={{ padding:'10px 10px', textAlign:'center', fontWeight: v===maxVal ? 900 : 400, color: v===maxVal ? color : '#4b5563' }}>
                         {v}%
@@ -882,33 +965,34 @@ function DesignTab() {
             </tbody>
           </table>
         </div>
-        <div style={{ fontSize:11, color:'#374151', marginTop:10, lineHeight:1.6 }}>Bold value in each row = highest weight for that pillar across formats.</div>
+        <p style={{ fontSize:11, color:'#374151', marginTop:10 }}>Highlighted value in each row = highest weight for that pillar across all formats.</p>
       </section>
+
+      <hr style={{ border:'none', borderTop:'1px solid rgba(255,255,255,0.07)', marginBottom:48 }} />
 
       {/* CALIBRATION */}
       <section style={{ marginBottom:52 }}>
-        <div style={{ fontSize:10, letterSpacing:2, color:'#eab308', fontWeight:700, marginBottom:10, textTransform:'uppercase' }}>Calibration Fixes</div>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(280px, 1fr))', gap:14, marginBottom:24 }}>
-          <div className="design-card" style={{ borderLeft:'3px solid #ef4444' }}>
-            <div style={{ fontSize:12, fontWeight:800, color:'#f87171', marginBottom:8 }}>Cameo Inflation</div>
-            <div style={{ fontSize:12, color:'#9ca3af', lineHeight:1.7 }}>
-              Tail-end bowlers with tiny samples ranked in the top ten. Fixed with a minimum innings threshold against top-10 opposition. Players below the threshold are excluded from the rated pool, not silently dropped.
-            </div>
-          </div>
-          <div className="design-card" style={{ borderLeft:'3px solid #f97316' }}>
-            <div style={{ fontSize:12, fontWeight:800, color:'#fb923c', marginBottom:8 }}>Over-penalising Specialists</div>
-            <div style={{ fontSize:12, color:'#9ca3af', lineHeight:1.7 }}>
-              A hard floor under 50 innings was punishing legitimate T20 specialists relative to long-career veterans, purely for having played in a shorter era. Fixed with a softer graduated curve.
-            </div>
-          </div>
-        </div>
-        <div style={{ fontSize:10, color:'#4b5563', letterSpacing:2, fontWeight:700, textTransform:'uppercase', marginBottom:12 }}>Innings Weight Curve</div>
-        <div style={{ display:'inline-block', borderRadius:10, overflow:'hidden', border:'1px solid rgba(255,255,255,0.07)' }}>
-          <table style={{ borderCollapse:'collapse', fontSize:12 }}>
+        <h2 style={{ fontSize:22, fontWeight:800, marginBottom:18, color:'#f1f5f9' }}>Calibration problems and fixes</h2>
+        <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85, marginBottom:28 }}>
+          Two structural failures showed up only after running the model across the full player set.
+        </p>
+
+        <h3 style={{ fontSize:16, fontWeight:800, color:'#f1f5f9', marginBottom:10 }}>Cameo inflation</h3>
+        <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85, marginBottom:28 }}>
+          Tail-end bowlers with tiny sample sizes were ranking in the top ten. A bowler with 6 innings and two lucky slogs looked elite on rate stats. Fixed with a minimum innings threshold against top 10 opposition. Players below the threshold are excluded from the rated pool and written out separately for review rather than silently dropped.
+        </p>
+
+        <h3 style={{ fontSize:16, fontWeight:800, color:'#f1f5f9', marginBottom:10 }}>Over-penalising specialists</h3>
+        <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85, marginBottom:20 }}>
+          The first innings-weight curve had a hard floor for anyone under 50 innings. This was meant to protect against small samples but it was punishing legitimate modern T20 specialists relative to long-career veterans, purely for having played in a shorter era. Fixed with a softer curve:
+        </p>
+
+        <div style={{ display:'inline-block', borderRadius:10, overflow:'hidden', border:'1px solid rgba(255,255,255,0.07)', marginBottom:20 }}>
+          <table style={{ borderCollapse:'collapse', fontSize:13 }}>
             <thead>
-              <tr style={{ background:'rgba(255,255,255,0.03)', borderBottom:'1px solid rgba(255,255,255,0.08)' }}>
+              <tr style={{ background:'rgba(255,255,255,0.025)', borderBottom:'1px solid rgba(255,255,255,0.08)' }}>
                 <th style={{ padding:'9px 22px', textAlign:'left', color:'#6b7280', fontWeight:600 }}>Innings vs Top 10</th>
-                <th style={{ padding:'9px 22px', textAlign:'center', color:'#6b7280', fontWeight:600 }}>Weight Applied</th>
+                <th style={{ padding:'9px 22px', textAlign:'center', color:'#6b7280', fontWeight:600 }}>Weight</th>
               </tr>
             </thead>
             <tbody>
@@ -921,45 +1005,64 @@ function DesignTab() {
             </tbody>
           </table>
         </div>
-        <div style={{ marginTop:14, fontSize:12, color:'#4b5563', lineHeight:1.7 }}>
-          Both fixes came from reading the output list top to bottom and asking one question per row: would a cricket fan argue with this? Every argument was a bug.
-        </div>
+
+        <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85 }}>
+          Both fixes came from reading the output list top to bottom and asking a single question about each row: would a cricket fan argue with this? Every argument was a bug.
+        </p>
       </section>
 
-      {/* LIMITATIONS */}
-      <section style={{ marginBottom:40 }}>
-        <div style={{ fontSize:10, letterSpacing:2, color:'#f97316', fontWeight:700, marginBottom:10, textTransform:'uppercase' }}>Known Limitations</div>
-        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-          {[
-            ['Popularity is a proxy','Instagram following correlates with fame but also with market size and social habits. A regionally beloved player in a smaller cricket nation is undervalued. A proper index would blend search volume, jersey sales, and broadcast appearances.'],
-            ['No format-specific cards yet','A Test specialist and a T20 specialist should not share a number. The gap between formats is large enough that a single OVR misrepresents most players.'],
-            ['Bowling parity missing','The seven pillars are tuned for batting. Bowling needs its own pillar set with economy and phase usage carrying the weight that strike rate carries here — not a mirrored batting model.'],
-            ['No card type layer','The cleanest long-term answer to the form vs legacy tension is separating base cards, peak-moment cards, and legend cards. Each makes a different claim.'],
-          ].map(([title, desc]) => (
-            <div key={title} className="design-card" style={{ display:'flex', gap:14 }}>
-              <div style={{ color:'#f97316', fontWeight:900, flexShrink:0, fontSize:16, marginTop:1 }}>→</div>
-              <div>
-                <div style={{ fontSize:12, fontWeight:800, color:'#fb923c', marginBottom:4 }}>{title}</div>
-                <div style={{ fontSize:12, color:'#6b7280', lineHeight:1.65 }}>{desc}</div>
-              </div>
-            </div>
-          ))}
-        </div>
+      <hr style={{ border:'none', borderTop:'1px solid rgba(255,255,255,0.07)', marginBottom:48 }} />
+
+      {/* WHAT THE PROTOTYPE DOES */}
+      <section style={{ marginBottom:52 }}>
+        <h2 style={{ fontSize:22, fontWeight:800, marginBottom:18, color:'#f1f5f9' }}>What the prototype does</h2>
+        <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85, marginBottom:10 }}>An interactive tool that:</p>
+        <ul style={{ paddingLeft:22, color:'#d1d5db', fontSize:14, lineHeight:2, marginBottom:14 }}>
+          <li>Renders generated player cards with OVR and the visible sub-attributes</li>
+          <li>Exposes every pillar weight as a live control</li>
+          <li>Recalculates and reorders the full player list in real time as weights change</li>
+          <li>Shows the pillar breakdown behind any single card, so any rating can be traced back to its inputs</li>
+        </ul>
+        <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85 }}>
+          The point of making the weights live is that it turns a static formula into an argument you can have. Drag popularity to zero and watch the leaderboard become statistically defensible and commercially unusable. That tradeoff is easier to demonstrate than to describe.
+        </p>
       </section>
+
+      <hr style={{ border:'none', borderTop:'1px solid rgba(255,255,255,0.07)', marginBottom:48 }} />
+
+      {/* WHAT I WOULD CHANGE */}
+      <section style={{ marginBottom:52 }}>
+        <h2 style={{ fontSize:22, fontWeight:800, marginBottom:18, color:'#f1f5f9' }}>What I would change</h2>
+
+        <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85, marginBottom:20 }}>
+          <strong style={{ color:'#d1d5db' }}>Popularity is a proxy, not a measure.</strong> Instagram following correlates with fame but also with market size and social media habits. A regionally beloved player in a smaller cricket nation is undervalued. A proper reputation index would blend search volume, jersey sales, and broadcast appearances.
+        </p>
+        <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85, marginBottom:20 }}>
+          <strong style={{ color:'#d1d5db' }}>Format-specific cards, not one universal rating.</strong> The gap between formats is large enough that a single OVR misrepresents most players. A Test specialist and a T20 specialist should not share a number.
+        </p>
+        <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85, marginBottom:20 }}>
+          <strong style={{ color:'#d1d5db' }}>Bowling parity.</strong> The seven pillars are tuned for batting. Bowling needs its own pillar set with economy and phase usage carrying the weight that strike rate carries here, not a mirrored version of the batting model.
+        </p>
+        <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85 }}>
+          <strong style={{ color:'#d1d5db' }}>The card type layer.</strong> The cleanest long-term answer to the form vs legacy tension is not a better single formula. It is separating base cards, peak-moment cards, and legend cards, and letting each one make a different claim.
+        </p>
+      </section>
+
+      <hr style={{ border:'none', borderTop:'1px solid rgba(255,255,255,0.07)', marginBottom:48 }} />
 
       {/* TAKEAWAY */}
-      <div style={{ background:'rgba(99,102,241,0.07)', border:'1px solid rgba(99,102,241,0.18)', borderRadius:12, padding:'20px 24px' }}>
-        <div style={{ fontSize:12, fontWeight:800, color:'#818cf8', marginBottom:8 }}>Takeaway</div>
-        <div style={{ fontSize:13, color:'#c7d2fe', lineHeight:1.8 }}>
+      <section>
+        <h2 style={{ fontSize:22, fontWeight:800, marginBottom:18, color:'#f1f5f9' }}>Takeaway</h2>
+        <p style={{ color:'#9ca3af', fontSize:14, lineHeight:1.85 }}>
           The hardest part of a rating system is never the math. It is deciding what the number should feel like to someone who already has an opinion, then defending that against balance requirements. Every weight in this model is a position on that tradeoff, and every one of them is written down and adjustable rather than buried in a spreadsheet.
-        </div>
-      </div>
+        </p>
+      </section>
     </div>
   );
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   TAB 2 — HOW TO USE
+   TAB 2: HOW TO USE
 ═══════════════════════════════════════════════════════════════ */
 function HowToTab() {
   return (
@@ -972,7 +1075,7 @@ function HowToTab() {
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
           {[
             ['1','🔍','Search a player','Type any name in the search field. Autocomplete activates at 2 characters. Try "Kohli", "Warne", "AB" or "IND" for country.'],
-            ['2','🏏','Pick a format','Select T20I, ODI, Test, IPL, BBL, PSL or SA20. Each format shifts pillar weights — Test buries Popularity, IPL amplifies it.'],
+            ['2','🏏','Pick a format','Select T20I, ODI, Test, IPL, BBL, PSL or SA20. Each format shifts pillar weights: Test buries Popularity, IPL amplifies it.'],
             ['3','📅','Set the year','Drag the slider or use ‹ › buttons to pick any year 1985–2026. The card reflects the player\'s career era: PEAK, RISING, VETERAN, RETIRED.'],
             ['4','⚡','Generate','Hit Generate (or press Enter). The OVR counts up to the result. The breakdown panel shows how each pillar contributed.'],
           ].map(([num, icon, title, desc]) => (
@@ -997,7 +1100,7 @@ function HowToTab() {
             { label:'Era badge', color:'#22c55e', desc:'PRE-CAREER / RISING / PEAK / VETERAN / LATE CAREER / RETIRED. Driven by the year slider relative to the player\'s career.' },
             { label:'v Pace / v Spin', color:'#06b6d4', desc:'Matchup sub-attributes for squad building. Surfaced on the card because they are actionable. Not hidden inside OVR.' },
             { label:'Form', color:'#eab308', desc:'Year-adjusted current form. Near-zero for retired players, peaks during PEAK era years. The most responsive value to the year slider.' },
-            { label:'Legacy', color:'#a855f7', desc:'Peak ICC rating score. Constant across all years — the permanent record of how high this player climbed.' },
+            { label:'Legacy', color:'#a855f7', desc:'Peak ICC rating score. Constant across all years. The permanent record of how high this player climbed.' },
           ].map(({ label, color, desc }) => (
             <div key={label} style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:10, padding:'14px 16px' }}>
               <div style={{ fontSize:12, fontWeight:800, color, marginBottom:6 }}>{label}</div>
@@ -1015,10 +1118,10 @@ function HowToTab() {
             { f:'T20I', emoji:'🌐', note:'Baseline. SR-heavy Career Output, balanced pillars. The default format for head-to-head comparisons.' },
             { f:'ODI',  emoji:'🏅', note:'Average gets more weight in Career Output. Slightly more emphasis on consistency over raw power.' },
             { f:'Test', emoji:'🎩', note:'Average dominates (60% of Career Output). Popularity drops to 8%. Legacy and Role Reliability matter most.' },
-            { f:'IPL',  emoji:'🏏', note:'Popularity jumps to 22%. Boundary % highest. Matchup Profile rises — franchise format rewards specialists.' },
+            { f:'IPL',  emoji:'🏏', note:'Popularity jumps to 22%. Boundary % highest. Matchup Profile rises: franchise format rewards specialists.' },
             { f:'BBL',  emoji:'🇦🇺', note:'Like IPL but less Popularity weight. Balanced between international standing and T20 rate.' },
             { f:'PSL',  emoji:'🇵🇰', note:'Like BBL. SR and Boundary weighted over average in Career Output.' },
-            { f:'SA20', emoji:'🇿🇦', note:'Popularity at 20% — mid-way between IPL and international. High Matchup Profile weight.' },
+            { f:'SA20', emoji:'🇿🇦', note:'Popularity at 20%, mid-way between IPL and international formats. High Matchup Profile weight.' },
           ].map(({ f, emoji, note }) => (
             <div key={f} style={{ display:'flex', gap:16, padding:'10px 16px', background:'rgba(255,255,255,0.02)', borderRadius:8, alignItems:'flex-start', border:'1px solid rgba(255,255,255,0.05)' }}>
               <div style={{ fontWeight:900, fontSize:13, color:'#818cf8', minWidth:54, flexShrink:0 }}>{emoji} {f}</div>
@@ -1030,7 +1133,7 @@ function HowToTab() {
 
       {/* YEAR SLIDER */}
       <section style={{ marginBottom:52 }}>
-        <div style={{ fontSize:10, letterSpacing:2, color:'#eab308', fontWeight:700, marginBottom:10, textTransform:'uppercase' }}>Year Slider — How It Works</div>
+        <div style={{ fontSize:10, letterSpacing:2, color:'#eab308', fontWeight:700, marginBottom:10, textTransform:'uppercase' }}>Year Slider: How It Works</div>
         <div style={{ color:'#9ca3af', fontSize:13, lineHeight:1.8, marginBottom:16 }}>
           The year slider adjusts the <strong style={{ color:'#e5e7eb' }}>Current Form pillar only</strong> via a year factor (0–1) applied to the player's base form score. The remaining 6 pillars (career output, peak ICC, popularity, etc.) are fixed and represent permanent career quality.
         </div>
@@ -1060,7 +1163,7 @@ function HowToTab() {
             ['Generate a card','Search any player, set format and year, hit Generate.'],
             ['Save to Collection','Click the green "Save to Collection" button below the card.'],
             ['Browse saved cards','The collection strip appears below the generator. Click any mini-card to reload it.'],
-            ['Compare across formats','Save Virat Kohli as T20I 2017 and Test 2019 — the collection shows both side by side.'],
+            ['Compare across formats','Save Virat Kohli as T20I 2017 and Test 2019. The collection shows both side by side.'],
           ].map(([title, desc]) => (
             <div key={title} style={{ display:'flex', gap:14, padding:'11px 16px', background:'rgba(255,255,255,0.02)', borderRadius:8, border:'1px solid rgba(255,255,255,0.05)' }}>
               <div style={{ color:'#22c55e', flexShrink:0, fontWeight:800, fontSize:16 }}>✓</div>
@@ -1075,15 +1178,15 @@ function HowToTab() {
 
       {/* WEIGHT EDITOR */}
       <section>
-        <div style={{ fontSize:10, letterSpacing:2, color:'#f97316', fontWeight:700, marginBottom:10, textTransform:'uppercase' }}>Weight Editor — ⚙️ Adjust Weights</div>
+        <div style={{ fontSize:10, letterSpacing:2, color:'#f97316', fontWeight:700, marginBottom:10, textTransform:'uppercase' }}>Weight Editor: Adjust Weights</div>
         <div style={{ color:'#9ca3af', fontSize:13, lineHeight:1.8, marginBottom:14 }}>
-          Click "Adjust Weights" to open the pillar editor. All 7 weights are live sliders — every card re-calculates as you drag. Weights must sum to 100% (a colour indicator shows validity).
+          Click "Adjust Weights" to open the pillar editor. All 7 weights are live sliders. Every card re-calculates as you drag. Weights must sum to 100% (a colour indicator shows validity).
         </div>
         <div style={{ display:'flex', flexDirection:'column', gap:9 }}>
           <div style={{ background:'rgba(249,115,22,0.07)', border:'1px solid rgba(249,115,22,0.18)', borderRadius:9, padding:'13px 16px' }}>
             <div style={{ fontSize:12, fontWeight:700, color:'#fb923c', marginBottom:4 }}>☆ Zero Popularity</div>
             <div style={{ fontSize:12, color:'#9ca3af', lineHeight:1.6 }}>
-              Set Popularity to 0% and watch the leaderboard shift. The result is statistically defensible but commercially unusable — it demonstrates the core tradeoff the system is built to make visible.
+              Set Popularity to 0% and watch the leaderboard shift. The result is statistically defensible but commercially unusable. That is the core tradeoff this system is built to make visible.
             </div>
           </div>
           <div style={{ background:'rgba(99,102,241,0.06)', border:'1px solid rgba(99,102,241,0.14)', borderRadius:9, padding:'13px 16px' }}>
@@ -1107,10 +1210,16 @@ function PlayerDatabase({ format, year, weights, onSelectPlayer }) {
 
   const roles = ['All', 'Batsman', 'WK-Batsman', 'Bowler', 'All-rounder'];
 
+  const eligibleCount = useMemo(() =>
+    PLAYERS.filter(p => year >= p.ay[0] && isPlayerEligible(p, format).ok).length
+  , [format, year]);
+
   const rows = useMemo(() => {
     const q = dbQuery.toLowerCase().trim();
     return PLAYERS
       .filter(p => {
+        if (year < p.ay[0]) return false;                      // hasn't debuted yet
+        if (!isPlayerEligible(p, format).ok) return false;    // league restriction
         if (q && !p.name.toLowerCase().includes(q) && !p.country.toLowerCase().includes(q) && !p.code.toLowerCase().includes(q)) return false;
         if (roleFilter !== 'All' && p.role !== roleFilter) return false;
         return true;
@@ -1127,10 +1236,22 @@ function PlayerDatabase({ format, year, weights, onSelectPlayer }) {
       {/* Header */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:14, flexWrap:'wrap', gap:8 }}>
         <div style={{ fontSize:11, color:'#4b5563', letterSpacing:2, fontWeight:700, textTransform:'uppercase' }}>
-          Player Database — {FORMAT_CONFIG[format].emoji} {FORMAT_CONFIG[format].label} · {year}
+          Player Database: {FORMAT_CONFIG[format].emoji} {FORMAT_CONFIG[format].label} · {year}
         </div>
-        <div style={{ fontSize:11, color:'#374151' }}>{rows.length} of {PLAYERS.length} players</div>
+        <div style={{ fontSize:11, color:'#374151' }}>
+          {rows.length} shown
+          {eligibleCount < PLAYERS.length && (
+            <span style={{ color:'#f97316', marginLeft:6 }}>
+              ({PLAYERS.length - eligibleCount} ineligible for {FORMAT_CONFIG[format].label})
+            </span>
+          )}
+        </div>
       </div>
+      {FORMAT_RESTRICTIONS[format] && (
+        <div style={{ marginBottom:14, fontSize:11, color:'#fb923c', background:'rgba(249,115,22,0.07)', border:'1px solid rgba(249,115,22,0.18)', borderRadius:7, padding:'7px 13px' }}>
+          {FORMAT_RESTRICTIONS[format].note}
+        </div>
+      )}
 
       {/* Filters */}
       <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'center', marginBottom:18 }}>
@@ -1228,6 +1349,8 @@ function App() {
   const [showWeights, setShowWeights] = useState(false);
   const inputRef = useRef(null);
 
+  const foundPlayer = useMemo(() => findPlayer(query), [query]);
+
   const changeWeight = useCallback((key, val) => setWeights(p => ({ ...p, [key]: val })), []);
 
   const handleQueryChange = (val) => {
@@ -1275,6 +1398,17 @@ function App() {
     const player = findPlayer(query);
     if (!player) {
       setGenError(`"${query}" not found. Try: ${PLAYERS.slice(0,3).map(p=>p.name).join(', ')}…`);
+      return;
+    }
+    // Year range check
+    if (year < player.ay[0]) {
+      setGenError(`No data for ${player.name} in ${year}. Career started in ${player.ay[0]}. Adjust the year slider or click "Jump to debut year".`);
+      return;
+    }
+    // League eligibility check
+    const elig = isPlayerEligible(player, format);
+    if (!elig.ok) {
+      setGenError(elig.reason);
       return;
     }
     await runGenerate(player);
@@ -1365,6 +1499,26 @@ function App() {
                     ))}
                   </div>
                 )}
+              {/* Career year hint */}
+              {foundPlayer && (
+                <div style={{ marginTop:6, fontSize:10, color:'#6b7280', display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
+                  <span>{foundPlayer.flag} {foundPlayer.country} · {foundPlayer.role}</span>
+                  <span style={{
+                    background: year < foundPlayer.ay[0] ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.06)',
+                    border: `1px solid ${year < foundPlayer.ay[0] ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.08)'}`,
+                    color: year < foundPlayer.ay[0] ? '#f87171' : '#6b7280',
+                    padding:'1px 8px', borderRadius:6, fontWeight:700,
+                  }}>
+                    Career: {foundPlayer.ay[0]}–{foundPlayer.ay[1] >= 2026 ? 'present' : foundPlayer.ay[1]}
+                  </span>
+                  {year < foundPlayer.ay[0] && (
+                    <button onClick={() => setYear(foundPlayer.ay[0])} style={{
+                      fontSize:10, padding:'2px 9px', borderRadius:6, fontWeight:700,
+                      background:'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.3)', color:'#818cf8'
+                    }}>Jump to debut year</button>
+                  )}
+                </div>
+              )}
               </div>
 
               {/* Year selector */}
