@@ -68,7 +68,7 @@
 const { useState, useMemo, useCallback, useEffect, useRef } = React;
 
 /* ═══════════════════════════════════════════════════════════════
-   PLAYER DATABASE  (45 players, pillars normalised 0-100)
+   PLAYER DATABASE  (53 players, pillars normalised 0-100)
 
    Base pillars = T20I-normalised career quality.
    formatOverrides = per-format pillar replacements (merged on top).
@@ -356,6 +356,55 @@ const PLAYERS = [
     ay:[2018,2026], py:[2022,2026], iw:0.90,
     note:"Left-hand power hitter and WK. Franchise cricket's most sought-after finisher right now.",
     p:{avg:70,sr:88,bnd:85,icc:78,pop:72,rr:75,oq:72,pace:82,spin:78,form:72},
+    fo:{} },
+
+  /* ── MID-TIER / LOWER-RATED PLAYERS ── */
+  { id:46, name:"Sam Curran",       country:"England",     code:"ENG", flag:"🏴󠁧󠁢󠁥󠁮󠁧󠁿", role:"All-rounder",
+    ay:[2018,2026], py:[2021,2024], iw:0.72,
+    note:"Left-arm seam all-rounder. Useful at franchise level but lacks elite batting average.",
+    p:{avg:52,sr:72,bnd:60,icc:62,pop:60,rr:65,oq:62,pace:70,spin:50,form:58},
+    fo:{} },
+
+  { id:47, name:"Shimron Hetmyer", country:"West Indies", code:"WI",  flag:"🏝️", role:"Batsman",
+    ay:[2017,2026], py:[2021,2024], iw:0.75,
+    note:"Explosive left-hand finisher but inconsistency and fitness concerns limit his ceiling.",
+    p:{avg:55,sr:82,bnd:78,icc:60,pop:58,rr:60,oq:65,pace:72,spin:68,form:55},
+    fo:{} },
+
+  { id:48, name:"Iftikhar Ahmed",   country:"Pakistan",   code:"PAK", flag:"🇵🇰", role:"All-rounder",
+    ay:[2019,2026], py:[2021,2023], iw:0.70,
+    note:"Domestic stalwart with handy off-spin. International consistency has been patchy.",
+    p:{avg:50,sr:75,bnd:62,icc:55,pop:52,rr:62,oq:58,pace:65,spin:68,form:52},
+    fo:{} },
+
+  { id:49, name:"Carlos Brathwaite",country:"West Indies", code:"WI",  flag:"🏝️", role:"All-rounder",
+    ay:[2014,2022], py:[2016,2018], iw:0.65,
+    note:"Hero of 2016 T20 WC final but career never scaled that peak again. Domestic contributor.",
+    p:{avg:44,sr:70,bnd:65,icc:58,pop:55,rr:55,oq:60,pace:62,spin:45,form:35},
+    fo:{} },
+
+  { id:50, name:"Rovman Powell",    country:"West Indies", code:"WI",  flag:"🏝️", role:"Batsman",
+    ay:[2021,2026], py:[2022,2025], iw:0.73,
+    note:"Big-hitting lower-order batsman. High ceiling but still raw and error-prone under pressure.",
+    p:{avg:48,sr:85,bnd:80,icc:58,pop:54,rr:58,oq:62,pace:75,spin:60,form:60},
+    fo:{} },
+
+  { id:51, name:"Thisara Perera",   country:"Sri Lanka",  code:"SL",  flag:"🇱🇰", role:"All-rounder",
+    ay:[2009,2021], py:[2014,2018], iw:0.65,
+    note:"Power-hitting lower-order with medium pace. Bursts of brilliance in limited-overs cricket.",
+    p:{avg:42,sr:78,bnd:70,icc:55,pop:50,rr:55,oq:58,pace:62,spin:42,form:30},
+    fo:{} },
+
+  { id:52, name:"Marcus Stoinis",   country:"Australia",  code:"AUS", flag:"🇦🇺", role:"All-rounder",
+    ay:[2015,2026], py:[2020,2024], iw:0.76,
+    note:"Hard-hitting all-rounder. Useful in T20s and IPL but Test-level credentials are modest.",
+    p:{avg:54,sr:74,bnd:68,icc:60,pop:62,rr:64,oq:68,pace:70,spin:50,form:60},
+    fo:{} },
+
+  { id:53, name:"Niroshan Dickwella",country:"Sri Lanka", code:"SL",  flag:"🇱🇰", role:"WK-Batsman",
+    ay:[2014,2026], py:[2017,2021], iw:0.68,
+    note:"Aggressive WK opener but disciplinary issues and form dips have curtailed his impact.",
+    p:{avg:46,sr:76,bnd:68,icc:55,pop:48,rr:55,oq:55,pace:65,spin:60,form:42},
     fo:{} },
 ];
 
@@ -1334,6 +1383,271 @@ function PlayerDatabase({ format, year, weights, onSelectPlayer }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   RANKINGS TAB
+═══════════════════════════════════════════════════════════════ */
+function RankingsTab() {
+  const [fmt,     setFmt]     = useState('T20I');
+  const [roleFilter, setRole] = useState('All');
+  const [view,    setView]    = useState('bar'); // 'bar' | 'timeline'
+
+  const TIER_COLOR = {
+    LEGEND:'#f59e0b', ICON:'#a855f7', ELITE:'#3b82f6',
+    STAR:'#10b981',   PRO:'#6b7280',  RARE:'#ef4444',
+  };
+  const TIER_ORDER = ['LEGEND','ICON','ELITE','STAR','PRO','RARE'];
+
+  /* Compute peak OVR for each player in chosen format */
+  const ranked = useMemo(() => {
+    const wts = FORMAT_CONFIG[fmt].weights;
+    return PLAYERS
+      .filter(p => isPlayerEligible(p, fmt))
+      .filter(p => roleFilter === 'All' || p.role === roleFilter)
+      .map(p => {
+        const midYear = Math.round((p.py[0] + p.py[1]) / 2);
+        const c = buildCard(p, fmt, midYear, wts);
+        return { player:p, ovr:c.ovr, year:midYear, badge:c.yf.badge };
+      })
+      .sort((a,b) => b.ovr - a.ovr);
+  }, [fmt, roleFilter]);
+
+  const roles = useMemo(() => {
+    const set = new Set(PLAYERS.map(p => p.role));
+    return ['All', ...Array.from(set).sort()];
+  }, []);
+
+  /* Bar chart dimensions */
+  const BAR_H   = 26;
+  const BAR_GAP = 6;
+  const LABEL_W = 160;
+  const MAX_OVR = 99;
+  const MIN_OVR = 60;
+  const CHART_W = 380;
+  const svgH    = ranked.length * (BAR_H + BAR_GAP) + 20;
+
+  const barW = ovr => ((ovr - MIN_OVR) / (MAX_OVR - MIN_OVR)) * CHART_W;
+
+  function getTier(ovr) {
+    if (ovr >= 95) return 'LEGEND';
+    if (ovr >= 90) return 'ICON';
+    if (ovr >= 85) return 'ELITE';
+    if (ovr >= 80) return 'STAR';
+    if (ovr >= 75) return 'PRO';
+    return 'RARE';
+  }
+
+  /* Timeline view — horizontal Gantt bars per player sorted by ay[0] */
+  const timelinePlayers = useMemo(() => {
+    return PLAYERS
+      .filter(p => roleFilter === 'All' || p.role === roleFilter)
+      .sort((a,b) => a.ay[0] - b.ay[0]);
+  }, [roleFilter]);
+
+  const TL_START = 1990, TL_END = 2026;
+  const TL_W = 540, TL_H_ROW = 22, TL_H_GAP = 4;
+  const tlX = yr => ((yr - TL_START) / (TL_END - TL_START)) * TL_W;
+  const tlSvgH = timelinePlayers.length * (TL_H_ROW + TL_H_GAP) + 30;
+
+  return (
+    <div style={{ padding:'28px 28px', overflowY:'auto' }}>
+      <h2 style={{ margin:'0 0 6px', fontSize:20, fontWeight:900 }}>📊 Player Rankings</h2>
+      <p style={{ margin:'0 0 20px', fontSize:13, color:'#6b7280' }}>
+        Peak OVR computed at each player's prime mid-point. Use filters to explore.
+      </p>
+
+      {/* Controls */}
+      <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginBottom:24, alignItems:'center' }}>
+        {/* Format selector */}
+        <div>
+          <div style={{ fontSize:10, color:'#6b7280', letterSpacing:1, marginBottom:5 }}>FORMAT</div>
+          <div style={{ display:'flex', gap:6 }}>
+            {Object.keys(FORMAT_CONFIG).map(f => (
+              <button key={f} onClick={() => setFmt(f)}
+                style={{
+                  padding:'5px 11px', fontSize:12, fontWeight:700, borderRadius:7, cursor:'pointer',
+                  background: fmt===f ? 'rgba(168,85,247,0.25)' : 'rgba(255,255,255,0.05)',
+                  border: fmt===f ? '1px solid rgba(168,85,247,0.5)' : '1px solid rgba(255,255,255,0.08)',
+                  color: fmt===f ? '#c084fc' : '#9ca3af',
+                }}>
+                {FORMAT_CONFIG[f].emoji} {f}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Role filter */}
+        <div>
+          <div style={{ fontSize:10, color:'#6b7280', letterSpacing:1, marginBottom:5 }}>ROLE</div>
+          <select value={roleFilter} onChange={e => setRole(e.target.value)}
+            style={{
+              padding:'6px 12px', fontSize:12, borderRadius:7, cursor:'pointer',
+              background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)',
+              color:'#e5e7eb',
+            }}>
+            {roles.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </div>
+
+        {/* View toggle */}
+        <div style={{ marginLeft:'auto' }}>
+          <div style={{ fontSize:10, color:'#6b7280', letterSpacing:1, marginBottom:5 }}>VIEW</div>
+          <div style={{ display:'flex', gap:6 }}>
+            {[['bar','📊 Bar Chart'],['timeline','📅 Career Timeline']].map(([v,label]) => (
+              <button key={v} onClick={() => setView(v)}
+                style={{
+                  padding:'5px 11px', fontSize:12, fontWeight:700, borderRadius:7, cursor:'pointer',
+                  background: view===v ? 'rgba(99,102,241,0.25)' : 'rgba(255,255,255,0.05)',
+                  border: view===v ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(255,255,255,0.08)',
+                  color: view===v ? '#818cf8' : '#9ca3af',
+                }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── BAR CHART VIEW ── */}
+      {view === 'bar' && (
+        <div style={{ overflowX:'auto' }}>
+          <div style={{ fontSize:12, color:'#4b5563', marginBottom:10 }}>
+            {ranked.length} eligible players · sorted by peak OVR at prime
+          </div>
+
+          {/* Tier legend */}
+          <div style={{ display:'flex', gap:14, flexWrap:'wrap', marginBottom:16 }}>
+            {TIER_ORDER.map(t => (
+              <span key={t} style={{ fontSize:11, display:'flex', alignItems:'center', gap:5 }}>
+                <span style={{ width:10, height:10, borderRadius:2, background:TIER_COLOR[t], display:'inline-block' }}/>
+                <span style={{ color:'#9ca3af' }}>{t}</span>
+              </span>
+            ))}
+          </div>
+
+          <svg width={LABEL_W + CHART_W + 60} height={svgH}
+            style={{ overflow:'visible', fontFamily:'inherit' }}>
+            {/* Grid lines at 70, 75, 80, 85, 90, 95 */}
+            {[70,75,80,85,90,95].map(g => {
+              const x = LABEL_W + barW(g);
+              return (
+                <g key={g}>
+                  <line x1={x} x2={x} y1={0} y2={svgH - 20}
+                    stroke="rgba(255,255,255,0.06)" strokeWidth={1} />
+                  <text x={x} y={svgH - 6} textAnchor="middle" fontSize={9} fill="#374151">{g}</text>
+                </g>
+              );
+            })}
+            {/* Baseline */}
+            <line x1={LABEL_W} x2={LABEL_W + CHART_W + 40} y1={svgH - 20} y2={svgH - 20}
+              stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
+
+            {ranked.map((r, i) => {
+              const tier  = getTier(r.ovr);
+              const color = TIER_COLOR[tier];
+              const cy    = i * (BAR_H + BAR_GAP) + 4;
+              const bw    = barW(r.ovr);
+              return (
+                <g key={r.player.id}>
+                  {/* Rank */}
+                  <text x={16} y={cy + BAR_H / 2 + 4} fontSize={10} fill="#4b5563" fontWeight={700}>
+                    {i + 1}
+                  </text>
+                  {/* Flag + Name */}
+                  <text x={36} y={cy + BAR_H / 2 - 3} fontSize={11} fill="#e5e7eb" fontWeight={700}>
+                    {r.player.flag} {r.player.name}
+                  </text>
+                  <text x={36} y={cy + BAR_H / 2 + 10} fontSize={9} fill="#6b7280">
+                    {r.player.country} · {r.player.role}
+                  </text>
+                  {/* Bar background */}
+                  <rect x={LABEL_W} y={cy} width={CHART_W} height={BAR_H}
+                    rx={5} fill="rgba(255,255,255,0.03)" />
+                  {/* Bar fill */}
+                  <rect x={LABEL_W} y={cy} width={bw} height={BAR_H}
+                    rx={5} fill={color} opacity={0.75} />
+                  {/* OVR label */}
+                  <text x={LABEL_W + bw + 6} y={cy + BAR_H / 2 + 4}
+                    fontSize={11} fontWeight={900} fill={color}>
+                    {r.ovr}
+                  </text>
+                  {/* Tier badge */}
+                  <text x={LABEL_W + CHART_W + 50} y={cy + BAR_H / 2 + 4}
+                    fontSize={9} fontWeight={700} fill={color} opacity={0.7} textAnchor="end">
+                    {tier}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      )}
+
+      {/* ── CAREER TIMELINE VIEW ── */}
+      {view === 'timeline' && (
+        <div style={{ overflowX:'auto' }}>
+          <div style={{ fontSize:12, color:'#4b5563', marginBottom:10 }}>
+            {timelinePlayers.length} players · career spans {TL_START}–{TL_END}
+          </div>
+          <svg width={200 + TL_W + 20} height={tlSvgH}
+            style={{ overflow:'visible', fontFamily:'inherit' }}>
+            {/* Year grid */}
+            {[1995,2000,2005,2010,2015,2020,2025].map(yr => {
+              const x = 200 + tlX(yr);
+              return (
+                <g key={yr}>
+                  <line x1={x} x2={x} y1={0} y2={tlSvgH - 18}
+                    stroke="rgba(255,255,255,0.06)" strokeWidth={1} />
+                  <text x={x} y={tlSvgH - 4} textAnchor="middle" fontSize={9} fill="#374151">{yr}</text>
+                </g>
+              );
+            })}
+            {timelinePlayers.map((p, i) => {
+              const cy  = i * (TL_H_ROW + TL_H_GAP) + 2;
+              const x0  = 200 + tlX(p.ay[0]);
+              const x1  = 200 + tlX(Math.min(p.ay[1], TL_END));
+              const px0 = 200 + tlX(p.py[0]);
+              const px1 = 200 + tlX(Math.min(p.py[1], TL_END));
+              return (
+                <g key={p.id}>
+                  {/* Name */}
+                  <text x={0} y={cy + TL_H_ROW / 2 - 2} fontSize={10} fill="#e5e7eb" fontWeight={600}>
+                    {p.flag} {p.name.length > 16 ? p.name.slice(0,15)+'…' : p.name}
+                  </text>
+                  <text x={0} y={cy + TL_H_ROW / 2 + 9} fontSize={8} fill="#6b7280">
+                    {p.country}
+                  </text>
+                  {/* Career bar (dim) */}
+                  <rect x={x0} y={cy + 4} width={Math.max(4, x1 - x0)} height={TL_H_ROW - 8}
+                    rx={3} fill="rgba(255,255,255,0.07)" />
+                  {/* Prime bar (bright) */}
+                  <rect x={px0} y={cy + 2} width={Math.max(4, px1 - px0)} height={TL_H_ROW - 4}
+                    rx={3} fill="rgba(168,85,247,0.55)" />
+                </g>
+              );
+            })}
+            {/* "Today" line */}
+            {(() => {
+              const x = 200 + tlX(2026);
+              return (
+                <line x1={x} x2={x} y1={0} y2={tlSvgH - 18}
+                  stroke="rgba(99,102,241,0.5)" strokeWidth={1.5} strokeDasharray="4,3" />
+              );
+            })()}
+          </svg>
+          <div style={{ fontSize:10, color:'#4b5563', marginTop:6, display:'flex', gap:16 }}>
+            <span style={{ display:'flex', alignItems:'center', gap:5 }}>
+              <span style={{ width:24, height:8, borderRadius:2, background:'rgba(255,255,255,0.1)', display:'inline-block' }}/> Career span
+            </span>
+            <span style={{ display:'flex', alignItems:'center', gap:5 }}>
+              <span style={{ width:24, height:8, borderRadius:2, background:'rgba(168,85,247,0.55)', display:'inline-block' }}/> Prime years
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
    OVR HISTORY PANEL (inline, right column of result area)
 ═══════════════════════════════════════════════════════════════ */
 function OVRHistoryPanel({ card }) {
@@ -1652,7 +1966,7 @@ function App() {
           )}
         </div>
         <div style={{ display:'flex', padding:'0 18px', marginTop:2 }}>
-          {[[0,'📐 Design Approach'],[1,'📖 How to Use'],[2,'⚡ Generator']].map(([idx, label]) => (
+          {[[0,'📐 Design Approach'],[1,'📖 How to Use'],[2,'⚡ Generator'],[3,'📊 Rankings']].map(([idx, label]) => (
             <button key={idx}
               className={`tab-nav-btn${activeTab===idx?' active':''}`}
               onClick={() => setActiveTab(idx)}>
@@ -1665,6 +1979,7 @@ function App() {
       {/* ── TAB CONTENT ── */}
       {activeTab === 0 && <DesignTab />}
       {activeTab === 1 && <HowToTab />}
+      {activeTab === 3 && <RankingsTab />}
       {activeTab === 2 && (
         <div style={{ display:'flex', flexDirection:'column', flex:1 }}>
 
