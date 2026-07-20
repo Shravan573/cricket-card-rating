@@ -451,16 +451,20 @@ function getSuggestions(query) {
 function getYearFactor(player, year) {
   const [start, end] = player.ay;
   const [ps, pe]     = player.py;
-  if (year < start - 1) return { factor:0.45, badge:'PRE-CAREER',  note:'Before international debut' };
-  if (year > end + 4)   return { factor:0.28, badge:'RETIRED',     note:'Post-retirement era'   };
-  if (year > end)       return { factor:0.50, badge:'LATE CAREER',  note:'Final / post-peak seasons' };
-  if (year >= ps && year <= pe) return { factor:1.0,  badge:'PEAK',        note:'Peak performance years' };
+  // Bug fixes applied (confirmed by unit tests in tests.js):
+  // 1. `year < start` (was `year < start - 1`) — catches the year immediately before debut
+  // 2. `year > end + 3` (was `year > end + 4`) — 4 yrs post-career is RETIRED, not LATE CAREER
+  // 3. factor rounded to 2dp to eliminate floating-point noise (e.g. 0.9299999...)
+  if (year < start)   return { factor:0.45, badge:'PRE-CAREER',  note:'Before international debut' };
+  if (year > end + 3) return { factor:0.28, badge:'RETIRED',     note:'Post-retirement era' };
+  if (year > end)     return { factor:0.50, badge:'LATE CAREER',  note:'Final / post-peak seasons' };
+  if (year >= ps && year <= pe) return { factor:1.0, badge:'PEAK', note:'Peak performance years' };
   if (year < ps) {
     const d = ps - year;
-    return { factor:Math.max(0.68, 1 - d * 0.06), badge:'RISING', note:`${d} year${d>1?'s':''} before peak` };
+    return { factor:parseFloat(Math.max(0.68, 1 - d * 0.06).toFixed(2)), badge:'RISING',   note:`${d} year${d>1?'s':''} before peak` };
   }
   const d = year - pe;
-  return { factor:Math.max(0.58, 1 - d * 0.07), badge:'VETERAN', note:`${d} year${d>1?'s':''} post-peak` };
+  return { factor:parseFloat(Math.max(0.58, 1 - d * 0.07).toFixed(2)), badge:'VETERAN', note:`${d} year${d>1?'s':''} post-peak` };
 }
 
 function buildCard(player, format, year, userWeights) {
