@@ -3,304 +3,618 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Cricket Card Rating System</title>
+  <title>Cricket Card Generator</title>
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-      background: #080f20;
-      color: #e8f4f8;
-      min-height: 100vh;
-    }
-    ::-webkit-scrollbar { width: 6px; }
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #060d1a; color: #e8f4f8; min-height: 100vh; }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: #0d1526; }
     ::-webkit-scrollbar-thumb { background: #1f2d4a; border-radius: 3px; }
-    input[type=range] {
-      -webkit-appearance: none; appearance: none;
-      height: 4px; border-radius: 2px;
-      background: rgba(255,255,255,0.12); outline: none; width: 100%;
+    input[type=range] { -webkit-appearance: none; appearance: none; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.12); outline: none; width: 100%; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 13px; height: 13px; border-radius: 50%; cursor: pointer; border: none; }
+    input[type=text], input[type=search] { outline: none; }
+    button { cursor: pointer; transition: opacity 0.15s, transform 0.1s; border: none; }
+    button:active { transform: scale(0.97); }
+
+    @keyframes cardIn {
+      from { opacity: 0; transform: scale(0.80) translateY(30px) rotateX(8deg); }
+      to   { opacity: 1; transform: scale(1) translateY(0) rotateX(0); }
     }
-    input[type=range]::-webkit-slider-thumb {
-      -webkit-appearance: none; width: 14px; height: 14px;
-      border-radius: 50%; cursor: pointer; border: none;
+    @keyframes shimmer {
+      0%   { background-position: -400px 0; }
+      100% { background-position: 400px 0; }
     }
-    input[type=text] { outline: none; }
-    .player-card {
-      transition: transform 0.18s ease, box-shadow 0.18s ease;
-      cursor: pointer;
+    @keyframes pulseGlow {
+      0%, 100% { filter: drop-shadow(0 0 8px rgba(250,204,21,0.4)); }
+      50%       { filter: drop-shadow(0 0 22px rgba(250,204,21,0.9)); }
     }
-    .player-card:hover {
-      transform: translateY(-6px) scale(1.03);
-      box-shadow: 0 16px 48px rgba(0,0,0,0.7) !important;
-    }
-    button { cursor: pointer; transition: opacity 0.15s; }
-    button:hover { opacity: 0.8; }
-    .tag {
-      display: inline-flex; align-items: center;
-      padding: 3px 8px; border-radius: 20px; font-size: 11px; font-weight: 600;
-    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes barGrow { from { width: 0; } }
+
+    .card-enter { animation: cardIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+    .legend-glow { animation: pulseGlow 2s ease-in-out 0.6s 3; }
+    .bar-grow { animation: barGrow 0.6s ease-out forwards; }
+
+    .collection-scroll { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; }
+    .collection-scroll::-webkit-scrollbar { height: 4px; }
+
+    .suggestion-item:hover { background: rgba(255,255,255,0.08); }
+    .format-btn:hover { opacity: 0.85; }
+    .gen-btn:hover { filter: brightness(1.1); }
+    .gen-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
   </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useMemo, useCallback } = React;
+const { useState, useMemo, useCallback, useEffect, useRef } = React;
 
-/* ─────────────────────────────────────────────
-   PLAYER DATA
-   All pillar values normalised 0–100.
+/* ═══════════════════════════════════════════════════════════════
+   PLAYER DATABASE  (45 players, pillars normalised 0-100)
+
+   Base pillars = T20I-normalised career quality.
+   formatOverrides = per-format pillar replacements (merged on top).
    Bowler cards use adapted sub-pillars:
-     battingAvg  → bowling quality (avg, inverted)
-     strikeRate  → wicket-taking rate (inverted)
-     boundaryPct → economy quality (inverted)
-───────────────────────────────────────────── */
+     battingAvg  → bowling quality   (inverted bowling avg)
+     strikeRate  → wicket-taking     (inverted bowling SR)
+     boundaryPct → economy control   (inverted economy rate)
+═══════════════════════════════════════════════════════════════ */
 const PLAYERS = [
-  {
-    id:1, name:"Virat Kohli", country:"India", code:"IND", flag:"🇮🇳",
-    role:"Batsman", inningsWt:1.0,
-    note:"Six years at #1, dominant across all conditions — the identity card of modern cricket.",
-    pillars:{ battingAvg:88, strikeRate:75, boundaryPct:72, peakICC:95, popularity:100,
-              roleReliability:95, oppositionQuality:92, vsPace:88, vsSpin:90, currentForm:72 }
-  },
-  {
-    id:2, name:"AB de Villiers", country:"South Africa", code:"SA", flag:"🇿🇦",
-    role:"Batsman (WK)", inningsWt:1.0,
-    note:"Peak SR and average are both historical outliers. Retired, but no defensible leaderboard drops him far.",
-    pillars:{ battingAvg:90, strikeRate:95, boundaryPct:92, peakICC:95, popularity:88,
-              roleReliability:88, oppositionQuality:90, vsPace:93, vsSpin:90, currentForm:20 }
-  },
-  {
-    id:3, name:"Suryakumar Yadav", country:"India", code:"IND", flag:"🇮🇳",
-    role:"Batsman", inningsWt:0.95,
-    note:"170+ sustained SR in T20I top order. Boundary% is the stat that doesn't average away.",
-    pillars:{ battingAvg:78, strikeRate:98, boundaryPct:98, peakICC:95, popularity:82,
-              roleReliability:82, oppositionQuality:85, vsPace:93, vsSpin:88, currentForm:87 }
-  },
-  {
-    id:4, name:"MS Dhoni", country:"India", code:"IND", flag:"🇮🇳",
-    role:"WK-Batsman", inningsWt:1.0,
-    note:"The original finisher. Finishing record and clutch delivery define this card, not raw SR.",
-    pillars:{ battingAvg:78, strikeRate:85, boundaryPct:75, peakICC:92, popularity:97,
-              roleReliability:92, oppositionQuality:88, vsPace:82, vsSpin:85, currentForm:30 }
-  },
-  {
-    id:5, name:"Rohit Sharma", country:"India", code:"IND", flag:"🇮🇳",
-    role:"Batsman", inningsWt:1.0,
-    note:"Most T20I hundreds. Power at the top with the range to go at 150+ when needed.",
-    pillars:{ battingAvg:80, strikeRate:80, boundaryPct:78, peakICC:88, popularity:95,
-              roleReliability:90, oppositionQuality:85, vsPace:82, vsSpin:85, currentForm:60 }
-  },
-  {
-    id:6, name:"Jasprit Bumrah", country:"India", code:"IND", flag:"🇮🇳",
-    role:"Bowler", inningsWt:0.95,
+  /* ── INDIA ── */
+  { id:1,  name:"Virat Kohli",      country:"India",       code:"IND", flag:"🇮🇳", role:"Batsman",
+    ay:[2008,2026], py:[2014,2019], iw:1.0,
+    note:"Six years at #1. Identity card of modern cricket — defined by fan expectation as much as data.",
+    p:{avg:88,sr:75,bnd:72,icc:95,pop:100,rr:95,oq:92,pace:88,spin:90,form:72},
+    fo:{ Test:{avg:95,sr:58,bnd:62,icc:97,oq:94}, ODI:{avg:93,sr:78,bnd:74,icc:95} } },
+
+  { id:2,  name:"Sachin Tendulkar", country:"India",       code:"IND", flag:"🇮🇳", role:"Batsman",
+    ay:[1989,2013], py:[1994,2007], iw:1.0,
+    note:"The benchmark all other cards are calibrated against. Peak ICC #1 across two decades.",
+    p:{avg:88,sr:68,bnd:70,icc:90,pop:99,rr:98,oq:96,pace:93,spin:92,form:10},
+    fo:{ Test:{avg:97,sr:52,bnd:65,icc:98,oq:97}, ODI:{avg:94,sr:72,bnd:72,icc:96} } },
+
+  { id:3,  name:"Rohit Sharma",     country:"India",       code:"IND", flag:"🇮🇳", role:"Batsman",
+    ay:[2007,2026], py:[2015,2023], iw:1.0,
+    note:"Most T20I hundreds. Power opener with elite ceiling hitting range.",
+    p:{avg:80,sr:80,bnd:78,icc:88,pop:95,rr:90,oq:85,pace:82,spin:85,form:60},
+    fo:{ ODI:{avg:88,sr:80,bnd:80,icc:90}, Test:{avg:82,sr:60,bnd:65,icc:84} } },
+
+  { id:4,  name:"MS Dhoni",         country:"India",       code:"IND", flag:"🇮🇳", role:"WK-Batsman",
+    ay:[2004,2019], py:[2009,2014], iw:1.0,
+    note:"The original finisher. Clutch delivery rate defines this card, not raw SR.",
+    p:{avg:78,sr:85,bnd:75,icc:92,pop:97,rr:92,oq:88,pace:82,spin:85,form:30},
+    fo:{ ODI:{avg:82,sr:82,bnd:72,icc:90}, Test:{avg:80,sr:60,bnd:60,icc:85,rr:88} } },
+
+  { id:5,  name:"Suryakumar Yadav", country:"India",       code:"IND", flag:"🇮🇳", role:"Batsman",
+    ay:[2021,2026], py:[2022,2026], iw:0.95,
+    note:"170+ sustained SR — the highest in modern T20I top-order batting. Boundary% is the stat that doesn't average away.",
+    p:{avg:78,sr:98,bnd:98,icc:95,pop:82,rr:82,oq:85,pace:93,spin:88,form:87},
+    fo:{ Test:{avg:50,sr:60,bnd:60,icc:20,rr:20,oq:20}, ODI:{avg:72,sr:90,bnd:90} } },
+
+  { id:6,  name:"Jasprit Bumrah",   country:"India",       code:"IND", flag:"🇮🇳", role:"Bowler",
+    ay:[2016,2026], py:[2018,2026], iw:0.95,
     note:"Unplayable in powerplay and death. Bowling pillars adapted (avg/SR/economy inverted).",
-    pillars:{ battingAvg:71, strikeRate:78, boundaryPct:75, peakICC:93, popularity:90,
-              roleReliability:88, oppositionQuality:92, vsPace:95, vsSpin:50, currentForm:88 }
-  },
-  {
-    id:7, name:"Babar Azam", country:"Pakistan", code:"PAK", flag:"🇵🇰",
-    role:"Batsman", inningsWt:1.0,
-    note:"50+ T20I average. The textbook case of extraordinary consistency hiding a moderate SR.",
-    pillars:{ battingAvg:85, strikeRate:72, boundaryPct:68, peakICC:90, popularity:88,
-              roleReliability:93, oppositionQuality:82, vsPace:85, vsSpin:82, currentForm:75 }
-  },
-  {
-    id:8, name:"Rashid Khan", country:"Afghanistan", code:"AFG", flag:"🇦🇫",
-    role:"Bowler", inningsWt:1.0,
-    note:"Best T20 economy for a frontline spinner. Devastating in middle overs across every league.",
-    pillars:{ battingAvg:85, strikeRate:82, boundaryPct:90, peakICC:85, popularity:75,
-              roleReliability:85, oppositionQuality:82, vsPace:50, vsSpin:95, currentForm:80 }
-  },
-  {
-    id:9, name:"Jos Buttler", country:"England", code:"ENG", flag:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",
-    role:"WK-Batsman", inningsWt:0.95,
-    note:"Anchors and explodes. Versatility across positions makes him England's most dangerous bat.",
-    pillars:{ battingAvg:78, strikeRate:88, boundaryPct:85, peakICC:85, popularity:82,
-              roleReliability:88, oppositionQuality:82, vsPace:85, vsSpin:80, currentForm:72 }
-  },
-  {
-    id:10, name:"Kane Williamson", country:"New Zealand", code:"NZ", flag:"🇳🇿",
-    role:"Batsman", inningsWt:1.0,
-    note:"Elite average covers a lower SR. The clearest example of why one stat is never enough.",
-    pillars:{ battingAvg:88, strikeRate:68, boundaryPct:65, peakICC:85, popularity:78,
-              roleReliability:92, oppositionQuality:88, vsPace:88, vsSpin:85, currentForm:70 }
-  },
-  {
-    id:11, name:"David Warner", country:"Australia", code:"AUS", flag:"🇦🇺",
-    role:"Batsman", inningsWt:1.0,
-    note:"40+ average across a decade at the top. The original power opener who defined the role.",
-    pillars:{ battingAvg:82, strikeRate:82, boundaryPct:80, peakICC:88, popularity:85,
-              roleReliability:90, oppositionQuality:85, vsPace:80, vsSpin:78, currentForm:25 }
-  },
-  {
-    id:12, name:"Ben Stokes", country:"England", code:"ENG", flag:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",
-    role:"All-rounder", inningsWt:1.0,
-    note:"Clutch match-winner across all conditions. Retired from T20I; output still demands a slot.",
-    pillars:{ battingAvg:72, strikeRate:78, boundaryPct:75, peakICC:82, popularity:85,
-              roleReliability:80, oppositionQuality:88, vsPace:80, vsSpin:78, currentForm:45 }
-  },
-  {
-    id:13, name:"Shaheen Afridi", country:"Pakistan", code:"PAK", flag:"🇵🇰",
-    role:"Bowler", inningsWt:0.90,
+    p:{avg:71,sr:78,bnd:75,icc:93,pop:90,rr:88,oq:92,pace:95,spin:50,form:88},
+    fo:{ Test:{avg:88,sr:82,bnd:80,icc:95,oq:94}, ODI:{avg:80,sr:80,bnd:78,icc:92} } },
+
+  { id:7,  name:"KL Rahul",         country:"India",       code:"IND", flag:"🇮🇳", role:"WK-Batsman",
+    ay:[2015,2026], py:[2019,2022], iw:0.90,
+    note:"Elite timing at the top. The clearest T20 batter who also anchors ODIs.",
+    p:{avg:80,sr:82,bnd:78,icc:82,pop:82,rr:78,oq:78,pace:80,spin:80,form:68},
+    fo:{} },
+
+  { id:8,  name:"Rishabh Pant",     country:"India",       code:"IND", flag:"🇮🇳", role:"WK-Batsman",
+    ay:[2017,2026], py:[2021,2022], iw:0.90,
+    note:"Match-defining innings in Tests, aggressive T20 game. Unique dual threat.",
+    p:{avg:72,sr:88,bnd:85,icc:80,pop:80,rr:72,oq:78,pace:82,spin:85,form:65},
+    fo:{ Test:{avg:85,sr:65,bnd:72,icc:88,rr:80} } },
+
+  { id:9,  name:"Hardik Pandya",    country:"India",       code:"IND", flag:"🇮🇳", role:"All-rounder",
+    ay:[2016,2026], py:[2022,2023], iw:0.90,
+    note:"Rare upper-order hitting + seam bowling in one card. Role Reliability reflects the injury floor.",
+    p:{avg:70,sr:85,bnd:82,icc:80,pop:88,rr:72,oq:80,pace:80,spin:72,form:65},
+    fo:{} },
+
+  { id:10, name:"Kapil Dev",        country:"India",       code:"IND", flag:"🇮🇳", role:"All-rounder",
+    ay:[1978,1994], py:[1982,1988], iw:1.0,
+    note:"The 1983 World Cup card. Pace and lower-order hitting before anyone had framed it that way.",
+    p:{avg:78,sr:75,bnd:72,icc:85,pop:85,rr:85,oq:85,pace:88,spin:55,form:10},
+    fo:{ Test:{avg:85,sr:68,bnd:68,icc:92,oq:90} } },
+
+  /* ── PAKISTAN ── */
+  { id:11, name:"Babar Azam",       country:"Pakistan",    code:"PAK", flag:"🇵🇰", role:"Batsman",
+    ay:[2016,2026], py:[2021,2023], iw:1.0,
+    note:"50+ T20I average with extraordinary consistency — textbook top-order reliability with a moderate SR ceiling.",
+    p:{avg:85,sr:72,bnd:68,icc:90,pop:88,rr:93,oq:82,pace:85,spin:82,form:75},
+    fo:{ ODI:{avg:90,sr:78,bnd:72,icc:92}, Test:{avg:88,sr:62,bnd:62,icc:88,oq:82} } },
+
+  { id:12, name:"Shaheen Afridi",   country:"Pakistan",    code:"PAK", flag:"🇵🇰", role:"Bowler",
+    ay:[2018,2026], py:[2021,2026], iw:0.90,
     note:"Left-arm pace with elite powerplay threat. Dangerous to top-order right-handers globally.",
-    pillars:{ battingAvg:72, strikeRate:75, boundaryPct:72, peakICC:82, popularity:80,
-              roleReliability:80, oppositionQuality:82, vsPace:88, vsSpin:50, currentForm:75 }
-  },
-  {
-    id:14, name:"Hardik Pandya", country:"India", code:"IND", flag:"🇮🇳",
-    role:"All-rounder", inningsWt:0.90,
-    note:"Rare upper-order hitting + seam bowling in one card. Role Reliability reflects injury floor.",
-    pillars:{ battingAvg:70, strikeRate:85, boundaryPct:82, peakICC:80, popularity:88,
-              roleReliability:72, oppositionQuality:80, vsPace:80, vsSpin:72, currentForm:65 }
-  },
-  {
-    id:15, name:"Mitchell Starc", country:"Australia", code:"AUS", flag:"🇦🇺",
-    role:"Bowler", inningsWt:0.90,
+    p:{avg:72,sr:75,bnd:72,icc:82,pop:80,rr:80,oq:82,pace:88,spin:50,form:75},
+    fo:{ Test:{avg:82,sr:80,bnd:78,icc:88,oq:88} } },
+
+  { id:13, name:"Wasim Akram",      country:"Pakistan",    code:"PAK", flag:"🇵🇰", role:"Bowler",
+    ay:[1984,2003], py:[1990,1999], iw:1.0,
+    note:"The benchmark of left-arm swing. Match-winning in all conditions, all formats.",
+    p:{avg:82,sr:82,bnd:80,icc:92,pop:88,rr:90,oq:92,pace:95,spin:55,form:10},
+    fo:{ Test:{avg:95,sr:88,bnd:88,icc:97,oq:95} } },
+
+  { id:14, name:"Waqar Younis",     country:"Pakistan",    code:"PAK", flag:"🇵🇰", role:"Bowler",
+    ay:[1989,2003], py:[1993,1999], iw:1.0,
+    note:"Reverse swing pioneer. Among the fastest to 200 Test wickets.",
+    p:{avg:80,sr:80,bnd:80,icc:90,pop:80,rr:82,oq:90,pace:93,spin:55,form:10},
+    fo:{ Test:{avg:93,sr:86,bnd:86,icc:95,oq:93} } },
+
+  { id:15, name:"Imran Khan",       country:"Pakistan",    code:"PAK", flag:"🇵🇰", role:"All-rounder",
+    ay:[1971,1992], py:[1980,1987], iw:1.0,
+    note:"Captain, all-rounder, 1992 World Cup. The original complete cricketer.",
+    p:{avg:78,sr:70,bnd:68,icc:88,pop:88,rr:85,oq:90,pace:88,spin:55,form:10},
+    fo:{ Test:{avg:88,sr:65,bnd:65,icc:95,oq:95,rr:88} } },
+
+  /* ── AUSTRALIA ── */
+  { id:16, name:"Steve Smith",      country:"Australia",   code:"AUS", flag:"🇦🇺", role:"Batsman",
+    ay:[2010,2026], py:[2015,2020], iw:0.90,
+    note:"Best Test batter of his era. T20 SR is the card's honest weakness.",
+    p:{avg:78,sr:65,bnd:62,icc:82,pop:80,rr:85,oq:88,pace:82,spin:88,form:68},
+    fo:{ Test:{avg:96,sr:52,bnd:62,icc:97,oq:94}, ODI:{avg:85,sr:75,bnd:68} } },
+
+  { id:17, name:"David Warner",     country:"Australia",   code:"AUS", flag:"🇦🇺", role:"Batsman",
+    ay:[2009,2023], py:[2015,2019], iw:1.0,
+    note:"40+ average across a decade at the top. The original power opener who defined the role.",
+    p:{avg:82,sr:82,bnd:80,icc:88,pop:85,rr:90,oq:85,pace:80,spin:78,form:25},
+    fo:{ ODI:{avg:86,sr:80,bnd:78,icc:88} } },
+
+  { id:18, name:"Ricky Ponting",    country:"Australia",   code:"AUS", flag:"🇦🇺", role:"Batsman",
+    ay:[1995,2012], py:[2000,2008], iw:1.0,
+    note:"Greatest Australian batter. Back-to-back World Cup wins. Runs at every level against everyone.",
+    p:{avg:85,sr:70,bnd:70,icc:88,pop:88,rr:95,oq:94,pace:88,spin:85,form:10},
+    fo:{ Test:{avg:96,sr:55,bnd:65,icc:98,oq:96}, ODI:{avg:92,sr:76,bnd:74,icc:95} } },
+
+  { id:19, name:"Mitchell Starc",   country:"Australia",   code:"AUS", flag:"🇦🇺", role:"Bowler",
+    ay:[2010,2026], py:[2015,2020], iw:0.90,
     note:"Left-arm pace with match-defining powerplay spells. A big-game bowler across formats.",
-    pillars:{ battingAvg:68, strikeRate:72, boundaryPct:70, peakICC:82, popularity:78,
-              roleReliability:78, oppositionQuality:82, vsPace:85, vsSpin:50, currentForm:68 }
+    p:{avg:68,sr:72,bnd:70,icc:82,pop:78,rr:78,oq:82,pace:85,spin:50,form:68},
+    fo:{ Test:{avg:85,sr:78,bnd:78,icc:88,oq:88} } },
+
+  { id:20, name:"Pat Cummins",      country:"Australia",   code:"AUS", flag:"🇦🇺", role:"Bowler",
+    ay:[2011,2026], py:[2019,2026], iw:0.90,
+    note:"Captain and #1 Test bowler simultaneously. Rare combination of accuracy and aggression.",
+    p:{avg:72,sr:75,bnd:72,icc:85,pop:82,rr:82,oq:85,pace:88,spin:55,form:82},
+    fo:{ Test:{avg:88,sr:80,bnd:78,icc:93,oq:92} } },
+
+  { id:21, name:"Shane Warne",      country:"Australia",   code:"AUS", flag:"🇦🇺", role:"Bowler",
+    ay:[1992,2007], py:[1994,2005], iw:1.0,
+    note:"Best spinner in history by most measures. Ball of the century card still hasn't been topped.",
+    p:{avg:82,sr:80,bnd:82,icc:88,pop:90,rr:85,oq:92,pace:55,spin:98,form:10},
+    fo:{ Test:{avg:95,sr:88,bnd:88,icc:98,oq:96} } },
+
+  { id:22, name:"Glenn Maxwell",    country:"Australia",   code:"AUS", flag:"🇦🇺", role:"All-rounder",
+    ay:[2012,2026], py:[2014,2023], iw:0.90,
+    note:"The Big Show. 360-degree hitting and off-spin. IPL and T20 franchise MVP card.",
+    p:{avg:72,sr:92,bnd:90,icc:85,pop:82,rr:75,oq:80,pace:82,spin:85,form:70},
+    fo:{ ODI:{avg:76,sr:88,bnd:86} } },
+
+  /* ── ENGLAND ── */
+  { id:23, name:"Ben Stokes",       country:"England",     code:"ENG", flag:"🏴󠁧󠁢󠁥󠁮󠁧󠁿", role:"All-rounder",
+    ay:[2011,2026], py:[2016,2022], iw:1.0,
+    note:"Clutch match-winner across all conditions. Retired from T20I but output demands a slot.",
+    p:{avg:72,sr:78,bnd:75,icc:82,pop:85,rr:80,oq:88,pace:80,spin:78,form:45},
+    fo:{ Test:{avg:82,sr:58,bnd:68,icc:90,rr:85,oq:90} } },
+
+  { id:24, name:"Jos Buttler",      country:"England",     code:"ENG", flag:"🏴󠁧󠁢󠁥󠁮󠁧󠁿", role:"WK-Batsman",
+    ay:[2011,2026], py:[2018,2022], iw:0.95,
+    note:"Anchors and explodes. Versatility across positions makes him England's most dangerous bat.",
+    p:{avg:78,sr:88,bnd:85,icc:85,pop:82,rr:88,oq:82,pace:85,spin:80,form:72},
+    fo:{} },
+
+  { id:25, name:"Kevin Pietersen",  country:"England",     code:"ENG", flag:"🏴󠁧󠁢󠁥󠁮󠁧󠁿", role:"Batsman",
+    ay:[2004,2014], py:[2007,2012], iw:1.0,
+    note:"Match-winner in every format, against every bowler. Ceiling higher than the average suggests.",
+    p:{avg:78,sr:82,bnd:80,icc:82,pop:85,rr:80,oq:85,pace:80,spin:82,form:10},
+    fo:{ Test:{avg:90,sr:60,bnd:68,icc:90,oq:88} } },
+
+  { id:26, name:"James Anderson",   country:"England",     code:"ENG", flag:"🏴󠁧󠁢󠁥󠁮󠁧󠁿", role:"Bowler",
+    ay:[2002,2026], py:[2008,2018], iw:1.0,
+    note:"Most Test wickets by a fast bowler. T20 card understates the legacy entirely.",
+    p:{avg:68,sr:70,bnd:70,icc:80,pop:78,rr:78,oq:85,pace:82,spin:55,form:60},
+    fo:{ Test:{avg:95,sr:85,bnd:85,icc:96,oq:93} } },
+
+  { id:27, name:"Andrew Flintoff",  country:"England",     code:"ENG", flag:"🏴󠁧󠁢󠁥󠁮󠁧󠁿", role:"All-rounder",
+    ay:[1998,2009], py:[2004,2007], iw:0.90,
+    note:"2005 Ashes all-rounder card. The last player who made an entire nation stop work for a Test.",
+    p:{avg:70,sr:80,bnd:78,icc:80,pop:85,rr:75,oq:85,pace:82,spin:55,form:10},
+    fo:{ Test:{avg:78,sr:55,bnd:65,icc:88,oq:90,rr:78} } },
+
+  /* ── SOUTH AFRICA ── */
+  { id:28, name:"AB de Villiers",   country:"South Africa",code:"SA",  flag:"🇿🇦", role:"Batsman",
+    ay:[2004,2018], py:[2013,2017], iw:1.0,
+    note:"Peak SR and average are both historical outliers. Retired, but no defensible leaderboard drops him far.",
+    p:{avg:90,sr:95,bnd:92,icc:95,pop:88,rr:88,oq:90,pace:93,spin:90,form:20},
+    fo:{ ODI:{avg:92,sr:92,bnd:90,icc:95}, Test:{avg:92,sr:60,bnd:68,icc:90,oq:90} } },
+
+  { id:29, name:"Jacques Kallis",   country:"South Africa",code:"SA",  flag:"🇿🇦", role:"All-rounder",
+    ay:[1995,2013], py:[2004,2011], iw:1.0,
+    note:"Greatest all-rounder card by volume. Both batting and bowling outputs are elite simultaneously.",
+    p:{avg:82,sr:65,bnd:65,icc:88,pop:82,rr:92,oq:90,pace:82,spin:80,form:10},
+    fo:{ Test:{avg:95,sr:50,bnd:62,icc:98,oq:95,rr:95}, ODI:{avg:88,sr:74,bnd:68,icc:90} } },
+
+  { id:30, name:"Dale Steyn",       country:"South Africa",code:"SA",  flag:"🇿🇦", role:"Bowler",
+    ay:[2004,2019], py:[2008,2015], iw:1.0,
+    note:"Best pace bowler of the 2010s. Any format, any conditions, he was the answer.",
+    p:{avg:78,sr:78,bnd:78,icc:90,pop:80,rr:80,oq:88,pace:93,spin:55,form:20},
+    fo:{ Test:{avg:93,sr:82,bnd:82,icc:96,oq:93} } },
+
+  { id:31, name:"Quinton de Kock",  country:"South Africa",code:"SA",  flag:"🇿🇦", role:"WK-Batsman",
+    ay:[2012,2026], py:[2019,2022], iw:0.95,
+    note:"Aggressive opener who resets the format definition for WK-batting. Elite vs pace.",
+    p:{avg:78,sr:82,bnd:78,icc:82,pop:78,rr:82,oq:80,pace:80,spin:78,form:68},
+    fo:{} },
+
+  /* ── WEST INDIES ── */
+  { id:32, name:"Brian Lara",       country:"West Indies", code:"WI",  flag:"🏝️", role:"Batsman",
+    ay:[1990,2006], py:[1994,2004], iw:1.0,
+    note:"Test world record holder. The artist card — numbers that look impossible to reproduce.",
+    p:{avg:85,sr:72,bnd:72,icc:88,pop:88,rr:88,oq:90,pace:85,spin:88,form:10},
+    fo:{ Test:{avg:97,sr:55,bnd:68,icc:98,oq:92}, ODI:{avg:88,sr:74,bnd:72,icc:92} } },
+
+  { id:33, name:"Chris Gayle",      country:"West Indies", code:"WI",  flag:"🏝️", role:"Batsman",
+    ay:[1999,2021], py:[2011,2016], iw:1.0,
+    note:"Universe Boss. IPL record holder. Highest T20 individual score (175*). The franchise-format card.",
+    p:{avg:75,sr:90,bnd:88,icc:88,pop:90,rr:80,oq:82,pace:85,spin:80,form:25},
+    fo:{ IPL:{pop:95,sr:92}, Test:{avg:80,sr:60,bnd:65,icc:85,oq:82} } },
+
+  { id:34, name:"Kieron Pollard",   country:"West Indies", code:"WI",  flag:"🏝️", role:"All-rounder",
+    ay:[2006,2021], py:[2012,2016], iw:1.0,
+    note:"The IPL all-rounder template. Lower-order hitting and powerplay bowling across every league.",
+    p:{avg:70,sr:88,bnd:85,icc:80,pop:80,rr:80,oq:78,pace:82,spin:72,form:25},
+    fo:{} },
+
+  { id:35, name:"Sunil Narine",     country:"West Indies", code:"WI",  flag:"🏝️", role:"All-rounder",
+    ay:[2012,2026], py:[2013,2020], iw:0.90,
+    note:"Mystery spinner turned IPL opener. The most unusual stat profile in franchise cricket.",
+    p:{avg:75,sr:80,bnd:80,icc:80,pop:72,rr:78,oq:75,pace:55,spin:90,form:72},
+    fo:{ IPL:{pop:80,sr:85} } },
+
+  /* ── NEW ZEALAND ── */
+  { id:36, name:"Kane Williamson",  country:"New Zealand", code:"NZ",  flag:"🇳🇿", role:"Batsman",
+    ay:[2010,2026], py:[2016,2021], iw:1.0,
+    note:"Elite average covers the lower SR. The clearest example of why one stat is never enough.",
+    p:{avg:88,sr:68,bnd:65,icc:85,pop:78,rr:92,oq:88,pace:88,spin:85,form:70},
+    fo:{ Test:{avg:94,sr:55,bnd:62,icc:92,oq:90} } },
+
+  { id:37, name:"Brendon McCullum", country:"New Zealand", code:"NZ",  flag:"🇳🇿", role:"WK-Batsman",
+    ay:[2002,2016], py:[2013,2016], iw:1.0,
+    note:"Reinvented how New Zealand played cricket. The aggression card before aggression was the template.",
+    p:{avg:72,sr:88,bnd:85,icc:82,pop:82,rr:85,oq:82,pace:82,spin:78,form:10},
+    fo:{ Test:{avg:80,sr:62,bnd:68,icc:82,oq:80} } },
+
+  /* ── SRI LANKA ── */
+  { id:38, name:"Kumar Sangakkara", country:"Sri Lanka",   code:"SL",  flag:"🇱🇰", role:"WK-Batsman",
+    ay:[2000,2015], py:[2006,2014], iw:1.0,
+    note:"Four consecutive ODI centuries at 2015 World Cup. One of the cleanest stroke-players in history.",
+    p:{avg:85,sr:70,bnd:68,icc:88,pop:85,rr:92,oq:88,pace:85,spin:88,form:10},
+    fo:{ Test:{avg:95,sr:55,bnd:65,icc:96,oq:90}, ODI:{avg:92,sr:76,bnd:72,icc:92} } },
+
+  { id:39, name:"Muttiah Muralitharan",country:"Sri Lanka",code:"SL",  flag:"🇱🇰", role:"Bowler",
+    ay:[1992,2011], py:[1998,2008], iw:1.0,
+    note:"Most Test wickets in history. Off-spin card that redefined what economy means at international level.",
+    p:{avg:80,sr:80,bnd:82,icc:85,pop:82,rr:88,oq:88,pace:55,spin:98,form:10},
+    fo:{ Test:{avg:97,sr:88,bnd:88,icc:99,oq:90} } },
+
+  { id:40, name:"Lasith Malinga",   country:"Sri Lanka",   code:"SL",  flag:"🇱🇰", role:"Bowler",
+    ay:[2004,2019], py:[2009,2014], iw:1.0,
+    note:"Death-bowling specialist with the most T20I wickets in history. Yorker rate is the stat.",
+    p:{avg:80,sr:80,bnd:80,icc:90,pop:85,rr:85,oq:85,pace:92,spin:55,form:20},
+    fo:{} },
+
+  /* ── AFGHANISTAN ── */
+  { id:41, name:"Rashid Khan",      country:"Afghanistan", code:"AFG", flag:"🇦🇫", role:"Bowler",
+    ay:[2015,2026], py:[2017,2026], iw:1.0,
+    note:"Best T20 economy for a frontline spinner. Devastating in middle overs across every league.",
+    p:{avg:85,sr:82,bnd:90,icc:85,pop:75,rr:85,oq:82,pace:50,spin:95,form:80},
+    fo:{} },
+
+  { id:42, name:"Wanindu Hasaranga",country:"Sri Lanka",   code:"SL",  flag:"🇱🇰", role:"All-rounder",
+    ay:[2019,2026], py:[2021,2026], iw:0.90,
+    note:"Best T20I bowling average among current frontline spinners. Batting is the bonus.",
+    p:{avg:75,sr:78,bnd:78,icc:82,pop:70,rr:78,oq:78,pace:55,spin:88,form:75},
+    fo:{} },
+
+  /* ── BANGLADESH ── */
+  { id:43, name:"Shakib Al Hasan",  country:"Bangladesh",  code:"BAN", flag:"🇧🇩", role:"All-rounder",
+    ay:[2006,2026], py:[2012,2019], iw:1.0,
+    note:"Highest-ranked all-rounder across formats simultaneously. Runs and wickets in every game.",
+    p:{avg:72,sr:80,bnd:75,icc:85,pop:80,rr:85,oq:80,pace:78,spin:82,form:70},
+    fo:{} },
+
+  /* ── AUSTRALIA ── */
+  { id:44, name:"Liam Livingstone", country:"England",     code:"ENG", flag:"🏴󠁧󠁢󠁥󠁮󠁧󠁿", role:"Batsman",
+    ay:[2017,2026], py:[2021,2026], iw:0.85,
+    note:"360-degree hitting with off-spin utility. IPL market's fastest-rising valuation.",
+    p:{avg:68,sr:90,bnd:88,icc:80,pop:72,rr:72,oq:78,pace:82,spin:85,form:70},
+    fo:{} },
+
+  { id:45, name:"Nicholas Pooran",  country:"West Indies", code:"WI",  flag:"🏝️", role:"WK-Batsman",
+    ay:[2018,2026], py:[2022,2026], iw:0.90,
+    note:"Left-hand power hitter and WK. Franchise cricket's most sought-after finisher right now.",
+    p:{avg:70,sr:88,bnd:85,icc:78,pop:72,rr:75,oq:72,pace:82,spin:78,form:72},
+    fo:{} },
+];
+
+/* ═══════════════════════════════════════════════════════════════
+   FORMAT CONFIG
+═══════════════════════════════════════════════════════════════ */
+const FORMAT_CONFIG = {
+  T20I: {
+    label:'T20I', emoji:'🌐',
+    weights:{ careerOutput:25, peakICC:20, popularity:15, roleReliability:10, oppositionQuality:10, matchupProfile:10, currentForm:10 },
+    sw:{ avg:0.35, sr:0.40, bnd:0.25 },
+    pm:{},
+    sub:['Batting Avg','Strike Rate','Boundary %'],
   },
-];
-
-/* ─────────────────────────────────────────────
-   PILLARS CONFIG
-───────────────────────────────────────────── */
-const PILLAR_KEYS = [
-  'careerOutput','peakICC','popularity',
-  'roleReliability','oppositionQuality','matchupProfile','currentForm'
-];
-
-const DEFAULT_WEIGHTS = {
-  careerOutput:25, peakICC:20, popularity:15,
-  roleReliability:10, oppositionQuality:10, matchupProfile:10, currentForm:10
+  ODI: {
+    label:'ODI', emoji:'🏅',
+    weights:{ careerOutput:27, peakICC:22, popularity:12, roleReliability:12, oppositionQuality:10, matchupProfile:8, currentForm:9 },
+    sw:{ avg:0.45, sr:0.35, bnd:0.20 },
+    pm:{ avg:1.02, oq:1.02 },
+    sub:['Batting Avg','Strike Rate','Boundary %'],
+  },
+  Test: {
+    label:'Test', emoji:'🎩',
+    weights:{ careerOutput:32, peakICC:25, popularity:8, roleReliability:15, oppositionQuality:12, matchupProfile:5, currentForm:3 },
+    sw:{ avg:0.60, sr:0.15, bnd:0.25 },
+    pm:{ avg:1.05, sr:0.70, form:0.70 },
+    sub:['Avg / Bowl Quality','Control / Tech','Range / Economy'],
+  },
+  IPL: {
+    label:'IPL', emoji:'🏏',
+    weights:{ careerOutput:28, peakICC:12, popularity:22, roleReliability:10, oppositionQuality:8, matchupProfile:15, currentForm:5 },
+    sw:{ avg:0.25, sr:0.45, bnd:0.30 },
+    pm:{ pop:1.05, sr:1.03, bnd:1.03, oq:0.90 },
+    sub:['Avg','Strike Rate','Boundary %'],
+  },
+  BBL: {
+    label:'BBL', emoji:'🇦🇺',
+    weights:{ careerOutput:27, peakICC:13, popularity:18, roleReliability:12, oppositionQuality:8, matchupProfile:15, currentForm:7 },
+    sw:{ avg:0.28, sr:0.44, bnd:0.28 },
+    pm:{},
+    sub:['Avg','Strike Rate','Boundary %'],
+  },
+  PSL: {
+    label:'PSL', emoji:'🇵🇰',
+    weights:{ careerOutput:27, peakICC:13, popularity:18, roleReliability:12, oppositionQuality:8, matchupProfile:15, currentForm:7 },
+    sw:{ avg:0.28, sr:0.42, bnd:0.30 },
+    pm:{},
+    sub:['Avg','Strike Rate','Boundary %'],
+  },
+  SA20: {
+    label:'SA20', emoji:'🇿🇦',
+    weights:{ careerOutput:28, peakICC:12, popularity:20, roleReliability:11, oppositionQuality:8, matchupProfile:15, currentForm:6 },
+    sw:{ avg:0.27, sr:0.43, bnd:0.30 },
+    pm:{},
+    sub:['Avg','Strike Rate','Boundary %'],
+  },
 };
+
+const FORMAT_KEYS = Object.keys(FORMAT_CONFIG);
+const PILLAR_KEYS = ['careerOutput','peakICC','popularity','roleReliability','oppositionQuality','matchupProfile','currentForm'];
 
 const PILLAR_META = {
-  careerOutput:     { label:"Career Output",      color:"#22c55e", icon:"📊", desc:"Avg ×35%  ·  SR ×40%  ·  Boundary% ×25%" },
-  peakICC:          { label:"Peak ICC Rating",    color:"#a855f7", icon:"🏆", desc:"Highest ICC ranking ever achieved (700–920 band)" },
-  popularity:       { label:"Popularity",         color:"#f97316", icon:"⭐", desc:"Log-scaled Instagram following" },
-  roleReliability:  { label:"Role Reliability",   color:"#3b82f6", icon:"🎯", desc:"XI regularity · not-out % · position consistency" },
-  oppositionQuality:{ label:"Opposition Quality", color:"#ef4444", icon:"⚔️", desc:"Record filtered to top-10 ranked opposition" },
-  matchupProfile:   { label:"Matchup Profile",    color:"#06b6d4", icon:"🔄", desc:"Average of vs Pace & vs Spin ratings" },
-  currentForm:      { label:"Current Form",       color:"#eab308", icon:"📈", desc:"Current ICC rating — smallest weight by design" },
+  careerOutput:     { label:'Career Output',      color:'#22c55e', icon:'📊', desc:'Avg · SR · Boundary% (sub-weighted by format)' },
+  peakICC:          { label:'Peak ICC Rating',    color:'#a855f7', icon:'🏆', desc:'Highest ICC ranking achieved' },
+  popularity:       { label:'Popularity',         color:'#f97316', icon:'⭐', desc:'Log-scaled social following' },
+  roleReliability:  { label:'Role Reliability',   color:'#3b82f6', icon:'🎯', desc:'XI regularity · position consistency' },
+  oppositionQuality:{ label:'Opposition Quality', color:'#ef4444', icon:'⚔️', desc:'Record vs top-10 ranked opposition' },
+  matchupProfile:   { label:'Matchup Profile',    color:'#06b6d4', icon:'🔄', desc:'vs Pace & vs Spin averaged' },
+  currentForm:      { label:'Current Form',       color:'#eab308', icon:'📈', desc:'Year-adjusted ICC rating' },
 };
 
-/* ─────────────────────────────────────────────
-   TIERS
-───────────────────────────────────────────── */
 const TIERS = [
-  { min:95, label:"LEGEND", bg:"linear-gradient(145deg,#78350f,#f59e0b,#92400e)", text:"#1c0a00" },
-  { min:90, label:"ICON",   bg:"linear-gradient(145deg,#3b0764,#a855f7,#4c1d95)", text:"#f3e8ff" },
-  { min:85, label:"ELITE",  bg:"linear-gradient(145deg,#1e3a8a,#3b82f6,#1d4ed8)", text:"#dbeafe" },
-  { min:80, label:"STAR",   bg:"linear-gradient(145deg,#134e4a,#14b8a6,#0f766e)", text:"#ccfbf1" },
-  { min:75, label:"PRO",    bg:"linear-gradient(145deg,#14532d,#22c55e,#15803d)", text:"#dcfce7" },
-  { min:0,  label:"RARE",   bg:"linear-gradient(145deg,#1f2937,#6b7280,#374151)", text:"#f3f4f6" },
+  { min:95, label:'LEGEND', bg:'linear-gradient(145deg,#78350f,#f59e0b,#92400e)', text:'#1c0a00' },
+  { min:90, label:'ICON',   bg:'linear-gradient(145deg,#3b0764,#a855f7,#4c1d95)', text:'#f3e8ff' },
+  { min:85, label:'ELITE',  bg:'linear-gradient(145deg,#1e3a8a,#3b82f6,#1d4ed8)', text:'#dbeafe' },
+  { min:80, label:'STAR',   bg:'linear-gradient(145deg,#134e4a,#14b8a6,#0f766e)', text:'#ccfbf1' },
+  { min:75, label:'PRO',    bg:'linear-gradient(145deg,#14532d,#22c55e,#15803d)', text:'#dcfce7' },
+  { min:0,  label:'RARE',   bg:'linear-gradient(145deg,#1f2937,#6b7280,#374151)', text:'#f3f4f6' },
 ];
 const getTier = ovr => TIERS.find(t => ovr >= t.min);
 
-/* ─────────────────────────────────────────────
-   COMPUTATION
-───────────────────────────────────────────── */
-function getPillarScores(player) {
-  const p = player.pillars;
-  return {
-    careerOutput:     p.battingAvg * 0.35 + p.strikeRate * 0.40 + p.boundaryPct * 0.25,
-    peakICC:          p.peakICC,
-    popularity:       p.popularity,
-    roleReliability:  p.roleReliability,
-    oppositionQuality:p.oppositionQuality,
-    matchupProfile:   (p.vsPace + p.vsSpin) / 2,
-    currentForm:      p.currentForm,
+/* ═══════════════════════════════════════════════════════════════
+   UTILITY FUNCTIONS
+═══════════════════════════════════════════════════════════════ */
+function findPlayer(query) {
+  const q = query.toLowerCase().trim();
+  if (!q) return null;
+  return (
+    PLAYERS.find(p => p.name.toLowerCase() === q) ||
+    PLAYERS.find(p => p.name.toLowerCase().startsWith(q)) ||
+    PLAYERS.find(p => p.name.toLowerCase().includes(q)) ||
+    PLAYERS.find(p => p.name.split(' ').some(part => part.toLowerCase().startsWith(q))) ||
+    null
+  );
+}
+
+function getSuggestions(query) {
+  const q = query.toLowerCase().trim();
+  if (q.length < 2) return [];
+  return PLAYERS.filter(p =>
+    p.name.toLowerCase().includes(q) ||
+    p.country.toLowerCase().includes(q) ||
+    p.code.toLowerCase().includes(q)
+  ).slice(0, 7);
+}
+
+function getYearFactor(player, year) {
+  const [start, end] = player.ay;
+  const [ps, pe]     = player.py;
+  if (year < start - 1) return { factor:0.45, badge:'PRE-CAREER',  note:'Before international debut' };
+  if (year > end + 4)   return { factor:0.28, badge:'RETIRED',     note:'Post-retirement era'   };
+  if (year > end)       return { factor:0.50, badge:'LATE CAREER',  note:'Final / post-peak seasons' };
+  if (year >= ps && year <= pe) return { factor:1.0,  badge:'PEAK',        note:'Peak performance years' };
+  if (year < ps) {
+    const d = ps - year;
+    return { factor:Math.max(0.68, 1 - d * 0.06), badge:'RISING', note:`${d} year${d>1?'s':''} before peak` };
+  }
+  const d = year - pe;
+  return { factor:Math.max(0.58, 1 - d * 0.07), badge:'VETERAN', note:`${d} year${d>1?'s':''} post-peak` };
+}
+
+function buildCard(player, format, year, userWeights) {
+  const fc  = FORMAT_CONFIG[format];
+  const yf  = getYearFactor(player, year);
+  const fo  = player.fo[format] || {};
+
+  // Merge base pillars + format overrides
+  const raw = {
+    avg:  fo.avg  ?? player.p.avg,
+    sr:   fo.sr   ?? player.p.sr,
+    bnd:  fo.bnd  ?? player.p.bnd,
+    icc:  fo.icc  ?? player.p.icc,
+    pop:  fo.pop  ?? player.p.pop,
+    rr:   fo.rr   ?? player.p.rr,
+    oq:   fo.oq   ?? player.p.oq,
+    pace: fo.pace ?? player.p.pace,
+    spin: fo.spin ?? player.p.spin,
+    form: fo.form ?? player.p.form,
   };
+
+  // Apply format pillar multipliers (capped at 100)
+  const pm  = fc.pm;
+  const eff = {
+    avg:  Math.min(100, raw.avg  * (pm.avg  || 1)),
+    sr:   Math.min(100, raw.sr   * (pm.sr   || 1)),
+    bnd:  Math.min(100, raw.bnd  * (pm.bnd  || 1)),
+    icc:  raw.icc,
+    pop:  Math.min(100, raw.pop  * (pm.pop  || 1)),
+    rr:   raw.rr,
+    oq:   Math.min(100, raw.oq   * (pm.oq   || 1)),
+    pace: raw.pace,
+    spin: raw.spin,
+    form: Math.min(100, raw.form * (pm.form || 1) * yf.factor),
+  };
+
+  // Pillar scores
+  const scores = {
+    careerOutput:     eff.avg * fc.sw.avg + eff.sr * fc.sw.sr + eff.bnd * fc.sw.bnd,
+    peakICC:          eff.icc,
+    popularity:       eff.pop,
+    roleReliability:  eff.rr,
+    oppositionQuality:eff.oq,
+    matchupProfile:   (eff.pace + eff.spin) / 2,
+    currentForm:      eff.form,
+  };
+
+  // Use format default weights, allowing user slider overrides
+  const weights = { ...fc.weights, ...userWeights };
+  const total   = PILLAR_KEYS.reduce((s, k) => s + (weights[k] || 0), 0) || 1;
+  const raw_ovr = PILLAR_KEYS.reduce((s, k) => s + scores[k] * (weights[k] || 0) / total, 0);
+  const ovr     = Math.round(60 + (raw_ovr * (player.iw || 1)) / 100 * 39);
+
+  return { player, format, year, scores, eff, weights, yf, ovr, fc };
 }
 
-function calcOVR(player, weights) {
-  const scores = getPillarScores(player);
-  const total = PILLAR_KEYS.reduce((s, k) => s + (weights[k] || 0), 0) || 1;
-  const raw   = PILLAR_KEYS.reduce((s, k) => s + scores[k] * (weights[k] || 0) / total, 0);
-  return Math.round(60 + (raw * (player.inningsWt || 1)) / 100 * 39);
-}
+/* ═══════════════════════════════════════════════════════════════
+   COMPONENTS
+═══════════════════════════════════════════════════════════════ */
 
-/* ─────────────────────────────────────────────
-   SLIDER
-───────────────────────────────────────────── */
+/* Pillar weight slider */
 function Slider({ pKey, value, onChange }) {
   const { label, color, icon, desc } = PILLAR_META[pKey];
   return (
-    <div style={{ marginBottom:16 }}>
-      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5, alignItems:'center' }}>
-        <span style={{ fontSize:12, fontWeight:700, color }}>{icon} {label}</span>
-        <span style={{ fontSize:14, fontWeight:800, color:'#e5e7eb', minWidth:32, textAlign:'right' }}>{value}%</span>
+    <div style={{ marginBottom:14 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+        <span style={{ fontSize:11, fontWeight:700, color }}>{icon} {label}</span>
+        <span style={{ fontSize:13, fontWeight:800 }}>{value}%</span>
       </div>
       <input type="range" min={0} max={50} value={value}
         onChange={e => onChange(pKey, +e.target.value)}
-        style={{ accentColor: color }} />
-      <div style={{ fontSize:10, color:'#4b5563', marginTop:3 }}>{desc}</div>
+        style={{ accentColor:color }} />
+      <div style={{ fontSize:10, color:'#4b5563', marginTop:2 }}>{desc}</div>
     </div>
   );
 }
 
-/* ─────────────────────────────────────────────
-   PLAYER CARD
-───────────────────────────────────────────── */
-function Card({ player, weights, onSelect }) {
-  const ovr  = calcOVR(player, weights);
-  const tier = getTier(ovr);
-  const p    = player.pillars;
-
+/* Small card in collection */
+function CollectionMini({ card, onSelect }) {
+  const tier = getTier(card.ovr);
   return (
-    <div className="player-card" onClick={() => onSelect(player)}
+    <div onClick={() => onSelect(card)}
       style={{
-        background: tier.bg, color: tier.text,
-        borderRadius:14, padding:16, width:188,
-        boxShadow:'0 4px 20px rgba(0,0,0,0.5)',
-        display:'flex', flexDirection:'column', gap:8,
-        userSelect:'none',
+        background:tier.bg, color:tier.text,
+        borderRadius:10, padding:'10px 12px', minWidth:110,
+        cursor:'pointer', flexShrink:0, textAlign:'center',
+        boxShadow:'0 2px 12px rgba(0,0,0,0.4)',
+        transition:'transform 0.15s', userSelect:'none',
+      }}
+      onMouseEnter={e=>e.currentTarget.style.transform='translateY(-3px)'}
+      onMouseLeave={e=>e.currentTarget.style.transform='none'}
+    >
+      <div style={{ fontSize:9, letterSpacing:1, opacity:0.7, marginBottom:2 }}>{card.fc.label} · {card.year}</div>
+      <div style={{ fontSize:30, fontWeight:900, lineHeight:1 }}>{card.ovr}</div>
+      <div style={{ fontSize:16, margin:'4px 0' }}>{card.player.flag}</div>
+      <div style={{ fontSize:10, fontWeight:700, lineHeight:1.2 }}>{card.player.name.split(' ').slice(-1)[0]}</div>
+    </div>
+  );
+}
+
+/* Generated card (large) */
+function BigCard({ card, displayOVR, isNew }) {
+  const tier = getTier(card.ovr);
+  const { player: p, eff, yf, format, year } = card;
+  return (
+    <div className={isNew ? 'card-enter' + (card.ovr >= 95 ? ' legend-glow' : '') : ''}
+      style={{
+        background:tier.bg, color:tier.text,
+        borderRadius:16, padding:20, width:220,
+        boxShadow:'0 8px 36px rgba(0,0,0,0.6)',
+        display:'flex', flexDirection:'column', gap:10,
+        userSelect:'none', flexShrink:0,
       }}>
 
-      {/* OVR + tier badge */}
+      {/* OVR + badge row */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-        <div style={{ fontSize:50, fontWeight:900, lineHeight:1 }}>{ovr}</div>
-        <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:4 }}>
-          <div style={{
-            fontSize:9, fontWeight:800, letterSpacing:1.5,
-            background:'rgba(0,0,0,0.22)', padding:'3px 7px', borderRadius:4
-          }}>{tier.label}</div>
-          <div style={{ fontSize:10, fontWeight:700, opacity:0.8, letterSpacing:0.5 }}>
-            {player.role.split(' ')[0].toUpperCase()}
+        <div>
+          <div style={{ fontSize:60, fontWeight:900, lineHeight:1 }}>{displayOVR}</div>
+          <div style={{ fontSize:10, fontWeight:700, opacity:0.75, letterSpacing:0.5 }}>
+            {p.role.split(' ')[0].toUpperCase()}
           </div>
+        </div>
+        <div style={{ textAlign:'right', display:'flex', flexDirection:'column', gap:4 }}>
+          <div style={{ fontSize:9, fontWeight:800, letterSpacing:1.5, background:'rgba(0,0,0,0.22)', padding:'3px 7px', borderRadius:4 }}>
+            {tier.label}
+          </div>
+          <div style={{ fontSize:9, fontWeight:700, opacity:0.7 }}>{card.fc.label} · {year}</div>
+          <div style={{
+            fontSize:8, fontWeight:700, letterSpacing:0.5, padding:'2px 6px', borderRadius:10,
+            background:'rgba(0,0,0,0.18)',
+            color: yf.badge==='PEAK' ? '#86efac' : yf.badge==='RISING' ? '#93c5fd' : '#fdba74'
+          }}>{yf.badge}</div>
         </div>
       </div>
 
       {/* Flag portrait */}
       <div style={{
-        background:'rgba(0,0,0,0.22)', borderRadius:10,
-        padding:'12px 0', textAlign:'center', fontSize:44
-      }}>
-        {player.flag}
-      </div>
+        background:'rgba(0,0,0,0.2)', borderRadius:12,
+        padding:'14px 0', textAlign:'center', fontSize:52,
+      }}>{p.flag}</div>
 
       {/* Name */}
-      <div style={{ fontWeight:900, fontSize:13, textAlign:'center', lineHeight:1.25, letterSpacing:0.2 }}>
-        {player.name}
-      </div>
-      <div style={{ fontSize:10, textAlign:'center', opacity:0.6, letterSpacing:0.5 }}>
-        {player.code}
-      </div>
+      <div style={{ fontWeight:900, fontSize:15, textAlign:'center', lineHeight:1.25 }}>{p.name}</div>
+      <div style={{ fontSize:10, textAlign:'center', opacity:0.6, letterSpacing:0.5 }}>{p.code}</div>
 
-      {/* Key attributes grid */}
+      {/* Key attributes */}
       <div style={{
         display:'grid', gridTemplateColumns:'1fr 1fr', gap:'6px 10px',
-        background:'rgba(0,0,0,0.18)', borderRadius:9, padding:'10px 12px',
-        fontSize:11
+        background:'rgba(0,0,0,0.18)', borderRadius:10, padding:'10px 12px', fontSize:12,
       }}>
-        {[['v Pace', p.vsPace],['v Spin', p.vsSpin],['Form', p.currentForm],['Legacy', p.peakICC]].map(([k,v]) => (
+        {[['v Pace',eff.pace],['v Spin',eff.spin],['Form',Math.round(eff.form)],['Legacy',eff.icc]].map(([k,v])=>(
           <div key={k}>
             <div style={{ opacity:0.55, fontSize:9, letterSpacing:0.5, marginBottom:1 }}>{k}</div>
-            <div style={{ fontWeight:800, fontSize:15 }}>{v}</div>
+            <div style={{ fontWeight:800, fontSize:16 }}>{Math.round(v)}</div>
           </div>
         ))}
       </div>
@@ -308,318 +622,369 @@ function Card({ player, weights, onSelect }) {
   );
 }
 
-/* ─────────────────────────────────────────────
-   BREAKDOWN MODAL
-───────────────────────────────────────────── */
-function Modal({ player, weights, onClose }) {
-  const ovr    = calcOVR(player, weights);
-  const tier   = getTier(ovr);
-  const scores = getPillarScores(player);
-  const total  = PILLAR_KEYS.reduce((s, k) => s + (weights[k] || 0), 0) || 1;
+/* Breakdown panel */
+function BreakdownPanel({ card }) {
+  const { scores, weights, eff, fc, player:p } = card;
+  const total = PILLAR_KEYS.reduce((s,k) => s + (weights[k]||0), 0) || 1;
 
   return (
-    <div
-      style={{
-        position:'fixed', inset:0, background:'rgba(0,0,0,0.88)',
-        display:'flex', alignItems:'center', justifyContent:'center',
-        zIndex:1000, padding:20
-      }}
-      onClick={onClose}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          background:'#0f1929', borderRadius:18, padding:'28px 28px 24px',
-          width:'100%', maxWidth:540, maxHeight:'92vh', overflowY:'auto',
-          border:'1px solid rgba(255,255,255,0.07)',
-          boxShadow:'0 24px 80px rgba(0,0,0,0.8)'
-        }}
-      >
-        {/* Header */}
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:18 }}>
-          <div>
-            <div style={{ fontSize:24, fontWeight:900, letterSpacing:-0.5 }}>{player.name}</div>
-            <div style={{ fontSize:12, color:'#6b7280', marginTop:4 }}>
-              {player.flag} {player.country} · {player.role}
+    <div style={{ flex:1, minWidth:280, maxWidth:400 }}>
+      {/* Note */}
+      {p.note && (
+        <div style={{
+          background:'rgba(34,197,94,0.07)', borderLeft:'3px solid #22c55e',
+          padding:'9px 13px', borderRadius:6, fontSize:12, color:'#d1d5db',
+          lineHeight:1.6, marginBottom:18
+        }}>{p.note}</div>
+      )}
+
+      <div style={{ fontSize:10, color:'#4b5563', letterSpacing:2, fontWeight:700, textTransform:'uppercase', marginBottom:12 }}>Pillar Breakdown</div>
+      {PILLAR_KEYS.map(key => {
+        const { label, color, icon } = PILLAR_META[key];
+        const score   = scores[key];
+        const contrib = (score * (weights[key]||0) / total).toFixed(1);
+        return (
+          <div key={key} style={{ marginBottom:10 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4, fontSize:11 }}>
+              <span style={{ color, fontWeight:700 }}>{icon} {label}</span>
+              <span style={{ color:'#9ca3af' }}>
+                <span style={{ color:'#e5e7eb', fontWeight:800 }}>{Math.round(score)}</span>
+                <span style={{ color:'#374151' }}> × {weights[key]||0}% = </span>
+                <span style={{ color, fontWeight:700 }}>{contrib} pts</span>
+              </span>
+            </div>
+            <div style={{ background:'rgba(255,255,255,0.05)', borderRadius:4, height:7, overflow:'hidden' }}>
+              <div className="bar-grow" style={{ width:`${score}%`, height:'100%', background:color, borderRadius:4 }} />
             </div>
           </div>
-          <div style={{ textAlign:'right' }}>
-            <div style={{
-              fontSize:54, fontWeight:900, lineHeight:1,
-              background:tier.bg, WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent'
-            }}>{ovr}</div>
-            <div style={{ fontSize:10, color:'#6b7280', letterSpacing:1 }}>{tier.label}</div>
+        );
+      })}
+
+      <div style={{ marginTop:16 }}>
+        <div style={{ fontSize:10, color:'#4b5563', letterSpacing:2, fontWeight:700, textTransform:'uppercase', marginBottom:10 }}>
+          Career Output Sub-Pillars → {Math.round(scores.careerOutput)}
+        </div>
+        {fc.sub.map((lbl, i) => {
+          const keys = ['avg','sr','bnd'];
+          const wts  = [fc.sw.avg, fc.sw.sr, fc.sw.bnd];
+          const val  = Math.round([eff.avg, eff.sr, eff.bnd][i]);
+          return (
+            <div key={lbl} style={{ marginBottom:8 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3, fontSize:11, color:'#9ca3af' }}>
+                <span>{lbl}</span>
+                <span>{val} <span style={{ color:'#374151' }}>({Math.round(wts[i]*100)}%)</span></span>
+              </div>
+              <div style={{ background:'rgba(255,255,255,0.05)', borderRadius:3, height:5 }}>
+                <div style={{ width:`${val}%`, height:'100%', background:'#22c55e', borderRadius:3, opacity:0.6 }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:16 }}>
+        {[['vs PACE',Math.round(eff.pace),'#06b6d4'],['vs SPIN',Math.round(eff.spin),'#8b5cf6']].map(([lbl,val,clr])=>(
+          <div key={lbl} style={{ background:'rgba(255,255,255,0.04)', borderRadius:9, padding:12, textAlign:'center', border:'1px solid rgba(255,255,255,0.05)' }}>
+            <div style={{ fontSize:10, color:'#6b7280', letterSpacing:1, marginBottom:4 }}>{lbl}</div>
+            <div style={{ fontSize:30, fontWeight:900, color:clr }}>{val}</div>
           </div>
+        ))}
+      </div>
+
+      <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#374151', marginTop:12 }}>
+        <span>Year factor: <strong style={{ color:'#6b7280' }}>{card.yf.factor.toFixed(2)}× — {card.yf.note}</strong></span>
+        <span>OVR 60–99</span>
+      </div>
+    </div>
+  );
+}
+
+/* Weight editor modal */
+function WeightModal({ weights, format, onChange, onClose, onReset }) {
+  const total = PILLAR_KEYS.reduce((s,k) => s + (weights[k]||0), 0);
+  const ok    = Math.abs(total - 100) < 1;
+  return (
+    <div style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20 }} onClick={onClose}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:'#0f1929',borderRadius:18,padding:28,width:'100%',maxWidth:420,maxHeight:'92vh',overflowY:'auto',border:'1px solid rgba(255,255,255,0.07)' }}>
+        <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20 }}>
+          <div>
+            <div style={{ fontSize:16,fontWeight:900,marginBottom:2 }}>⚙️ Pillar Weights</div>
+            <div style={{ fontSize:11,color:'#4b5563' }}>Overrides {format} format defaults</div>
+          </div>
+          <div style={{
+            fontSize:13,fontWeight:800,padding:'5px 12px',borderRadius:8,
+            background:ok?'rgba(34,197,94,0.12)':'rgba(249,115,22,0.12)',
+            color:ok?'#22c55e':'#f97316',
+            border:`1px solid ${ok?'#22c55e':'#f97316'}`
+          }}>{total}%</div>
+        </div>
+        {PILLAR_KEYS.map(k=>(
+          <Slider key={k} pKey={k} value={weights[k]||0} onChange={onChange} />
+        ))}
+        <div style={{ display:'flex',gap:8,marginTop:16 }}>
+          <button onClick={onReset} style={{ flex:1,padding:'9px',fontSize:12,fontWeight:600,borderRadius:7,background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',color:'#e5e7eb' }}>
+            ↺ Format defaults
+          </button>
+          <button onClick={() => onChange('popularity', 0)} style={{ flex:1,padding:'9px',fontSize:12,fontWeight:600,borderRadius:7,background:'rgba(249,115,22,0.08)',border:'1px solid rgba(249,115,22,0.2)',color:'#f97316' }}>
+            ☆ Zero popularity
+          </button>
+        </div>
+        <div style={{ marginTop:16,fontSize:11,color:'#374151',lineHeight:1.7,padding:'12px 14px',background:'rgba(255,255,255,0.02)',borderRadius:8,border:'1px solid rgba(255,255,255,0.04)' }}>
+          <div style={{ color:'#4b5563',fontWeight:700,letterSpacing:1,marginBottom:5,fontSize:10 }}>FORMAT NOTE</div>
+          <div>Switching format resets to that format's default weights. {FORMAT_CONFIG[format].label} favours: <strong style={{ color:'#9ca3af' }}>{
+            format === 'Test' ? 'Career Output (avg-heavy) + Peak ICC' :
+            format === 'IPL'  ? 'SR/Boundary, Popularity, Matchup Profile' :
+            'Career Output (SR-heavy) + Peak ICC'
+          }</strong></div>
+        </div>
+        <button onClick={onClose} style={{ marginTop:14,width:'100%',padding:10,fontSize:13,fontWeight:600,borderRadius:8,background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',color:'#9ca3af' }}>
+          Done
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   APP
+═══════════════════════════════════════════════════════════════ */
+function App() {
+  const [query,       setQuery]       = useState('');
+  const [format,      setFormat]      = useState('T20I');
+  const [year,        setYear]        = useState(2024);
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSugg,    setShowSugg]    = useState(false);
+  const [generating,  setGenerating]  = useState(false);
+  const [genError,    setGenError]    = useState('');
+  const [card,        setCard]        = useState(null);
+  const [isNew,       setIsNew]       = useState(false);
+  const [displayOVR,  setDisplayOVR]  = useState(60);
+  const [collection,  setCollection]  = useState([]);
+  const [weights,     setWeights]     = useState({ ...FORMAT_CONFIG['T20I'].weights });
+  const [showWeights, setShowWeights] = useState(false);
+  const [viewCard,    setViewCard]    = useState(null);
+  const inputRef = useRef(null);
+
+  const changeWeight = useCallback((key, val) => setWeights(p => ({ ...p, [key]: val })), []);
+
+  const handleQueryChange = (val) => {
+    setQuery(val);
+    setGenError('');
+    const suggs = getSuggestions(val);
+    setSuggestions(suggs);
+    setShowSugg(suggs.length > 0 && val.length >= 2);
+  };
+
+  const selectSuggestion = (player) => {
+    setQuery(player.name);
+    setSuggestions([]);
+    setShowSugg(false);
+    inputRef.current?.focus();
+  };
+
+  const handleFormatChange = (f) => {
+    setFormat(f);
+    setWeights({ ...FORMAT_CONFIG[f].weights });
+  };
+
+  const handleGenerate = async () => {
+    if (!query.trim()) { setGenError('Enter a player name to generate a card.'); return; }
+    const player = findPlayer(query);
+    if (!player) {
+      setGenError(`"${query}" not found. Try: ${PLAYERS.slice(0,3).map(p=>p.name).join(', ')}…`);
+      return;
+    }
+    setGenerating(true);
+    setCard(null);
+    setGenError('');
+
+    // Brief compute pause for feel
+    await new Promise(r => setTimeout(r, 900));
+
+    const result = buildCard(player, format, year, weights);
+    setCard(result);
+    setIsNew(true);
+    setGenerating(false);
+
+    // OVR count-up
+    setDisplayOVR(60);
+    const target = result.ovr;
+    const step   = Math.max(1, Math.ceil((target - 60) / 25));
+    let cur      = 60;
+    const t = setInterval(() => {
+      cur = Math.min(cur + step, target);
+      setDisplayOVR(cur);
+      if (cur >= target) clearInterval(t);
+    }, 35);
+  };
+
+  const saveCard = () => {
+    if (!card) return;
+    const dup = collection.find(c =>
+      c.player.id === card.player.id && c.format === card.format && c.year === card.year
+    );
+    if (!dup) setCollection(prev => [card, ...prev]);
+  };
+
+  return (
+    <div style={{ display:'flex', minHeight:'100vh', flexDirection:'column' }}>
+
+      {/* ── HEADER ── */}
+      <div style={{ background:'#0a1220', borderBottom:'1px solid rgba(255,255,255,0.05)', padding:'14px 28px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <div>
+          <span style={{ fontSize:20, fontWeight:900, letterSpacing:-0.5 }}>🏏 Cricket Card Generator</span>
+          <span style={{ fontSize:12, color:'#4b5563', marginLeft:14 }}>{PLAYERS.length} players · 7 pillars · 7 formats · year-adjusted</span>
+        </div>
+        <button onClick={() => setShowWeights(true)} style={{
+          padding:'7px 16px', fontSize:12, fontWeight:700, borderRadius:8,
+          background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', color:'#9ca3af'
+        }}>⚙️ Adjust Weights</button>
+      </div>
+
+      {/* ── GENERATOR PANEL ── */}
+      <div style={{ background:'#0d1628', borderBottom:'1px solid rgba(255,255,255,0.05)', padding:'28px 28px 24px' }}>
+
+        {/* Search row */}
+        <div style={{ display:'flex', gap:12, alignItems:'flex-start', flexWrap:'wrap', marginBottom:18 }}>
+          <div style={{ position:'relative', flex:1, minWidth:260, maxWidth:380 }}>
+            <input
+              ref={inputRef} type="text"
+              placeholder="Player name (e.g. Virat Kohli, Warne)…"
+              value={query}
+              onChange={e => handleQueryChange(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { setShowSugg(false); handleGenerate(); } if (e.key === 'Escape') setShowSugg(false); }}
+              onFocus={() => query.length >= 2 && setShowSugg(suggestions.length > 0)}
+              style={{
+                width:'100%', padding:'11px 16px', fontSize:14, borderRadius:10,
+                background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)',
+                color:'#e5e7eb'
+              }}
+            />
+            {showSugg && (
+              <div style={{
+                position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:200,
+                background:'#131f38', border:'1px solid rgba(255,255,255,0.08)',
+                borderRadius:10, overflow:'hidden', boxShadow:'0 8px 32px rgba(0,0,0,0.6)'
+              }}>
+                {suggestions.map(p => (
+                  <div key={p.id} className="suggestion-item"
+                    onMouseDown={() => selectSuggestion(p)}
+                    style={{ padding:'10px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:10, fontSize:13 }}>
+                    <span style={{ fontSize:20 }}>{p.flag}</span>
+                    <div>
+                      <div style={{ fontWeight:700 }}>{p.name}</div>
+                      <div style={{ fontSize:11, color:'#6b7280' }}>{p.country} · {p.role}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Year selector */}
+          <div style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:10, padding:'8px 14px', minWidth:160 }}>
+            <div style={{ fontSize:10, color:'#6b7280', letterSpacing:1, marginBottom:6 }}>YEAR</div>
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <button onClick={() => setYear(y => Math.max(1985, y - 1))} style={{ background:'rgba(255,255,255,0.08)', border:'none', color:'#9ca3af', width:24, height:24, borderRadius:5, fontSize:14, display:'flex', alignItems:'center', justifyContent:'center' }}>‹</button>
+              <span style={{ fontWeight:900, fontSize:18, minWidth:44, textAlign:'center' }}>{year}</span>
+              <button onClick={() => setYear(y => Math.min(2026, y + 1))} style={{ background:'rgba(255,255,255,0.08)', border:'none', color:'#9ca3af', width:24, height:24, borderRadius:5, fontSize:14, display:'flex', alignItems:'center', justifyContent:'center' }}>›</button>
+            </div>
+            <input type="range" min={1985} max={2026} value={year} onChange={e=>setYear(+e.target.value)}
+              style={{ accentColor:'#a855f7', marginTop:6 }} />
+          </div>
+
+          {/* Generate button */}
+          <button className="gen-btn" onClick={handleGenerate} disabled={generating} style={{
+            padding:'0 28px', height:52, fontSize:15, fontWeight:800, borderRadius:10,
+            background:'linear-gradient(135deg,#1d4ed8,#7c3aed)',
+            border:'none', color:'#fff', letterSpacing:0.5,
+            boxShadow:'0 4px 20px rgba(124,58,237,0.35)',
+            display:'flex', alignItems:'center', gap:10
+          }}>
+            {generating ? (
+              <>
+                <span style={{ display:'inline-block', width:16, height:16, border:'2px solid rgba(255,255,255,0.3)', borderTopColor:'#fff', borderRadius:'50%', animation:'spin 0.7s linear infinite' }} />
+                Computing…
+              </>
+            ) : '⚡ Generate Card'}
+          </button>
         </div>
 
-        {/* Player note */}
-        {player.note && (
-          <div style={{
-            background:'rgba(34,197,94,0.07)', borderLeft:'3px solid #22c55e',
-            padding:'10px 14px', borderRadius:6, fontSize:13, color:'#d1d5db',
-            lineHeight:1.6, marginBottom:22
-          }}>{player.note}</div>
-        )}
-
-        {/* Pillar breakdown */}
-        <div style={{ marginBottom:22 }}>
-          <div style={{
-            fontSize:10, color:'#4b5563', letterSpacing:2, fontWeight:700,
-            textTransform:'uppercase', marginBottom:14
-          }}>Pillar Breakdown</div>
-
-          {PILLAR_KEYS.map(key => {
-            const { label, color, icon } = PILLAR_META[key];
-            const score   = scores[key];
-            const contrib = (score * (weights[key] || 0) / total).toFixed(1);
+        {/* Format tabs */}
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+          {FORMAT_KEYS.map(f => {
+            const fc = FORMAT_CONFIG[f];
+            const active = format === f;
             return (
-              <div key={key} style={{ marginBottom:12 }}>
-                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5, alignItems:'center', fontSize:12 }}>
-                  <span style={{ color, fontWeight:700 }}>{icon} {label}</span>
-                  <span style={{ color:'#9ca3af', fontSize:11 }}>
-                    <span style={{ color:'#e5e7eb', fontWeight:800 }}>{Math.round(score)}</span>
-                    <span style={{ color:'#374151' }}> × {weights[key] || 0}% = </span>
-                    <span style={{ color, fontWeight:700 }}>{contrib} pts</span>
-                  </span>
-                </div>
-                <div style={{ background:'rgba(255,255,255,0.05)', borderRadius:4, height:8, overflow:'hidden' }}>
-                  <div style={{
-                    width:`${score}%`, height:'100%', background:color,
-                    borderRadius:4, transition:'width 0.3s ease'
-                  }} />
-                </div>
-              </div>
+              <button key={f} className="format-btn" onClick={() => handleFormatChange(f)} style={{
+                padding:'7px 16px', fontSize:12, fontWeight:700, borderRadius:8,
+                background: active ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${active ? '#6366f1' : 'rgba(255,255,255,0.08)'}`,
+                color: active ? '#818cf8' : '#6b7280',
+              }}>{fc.emoji} {fc.label}</button>
             );
           })}
         </div>
 
-        {/* Career output sub-pillars */}
-        <div style={{ marginBottom:22 }}>
-          <div style={{
-            fontSize:10, color:'#4b5563', letterSpacing:2, fontWeight:700,
-            textTransform:'uppercase', marginBottom:14
-          }}>
-            Career Output Sub-Pillars → {Math.round(scores.careerOutput)}
+        {/* Error */}
+        {genError && (
+          <div style={{ marginTop:12, fontSize:12, color:'#f87171', background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.2)', padding:'8px 14px', borderRadius:8 }}>
+            {genError}
           </div>
-          {[
-            ['Batting Avg / Bowling Quality', 'battingAvg',  35],
-            ['Strike Rate / Wicket Rate',     'strikeRate',  40],
-            ['Boundary % / Economy Quality',  'boundaryPct', 25],
-          ].map(([lbl, key, w]) => (
-            <div key={key} style={{ marginBottom:9 }}>
-              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4, fontSize:11, color:'#9ca3af' }}>
-                <span>{lbl}</span>
-                <span style={{ color:'#6b7280' }}>{player.pillars[key]} <span style={{ color:'#374151' }}>({w}%)</span></span>
-              </div>
-              <div style={{ background:'rgba(255,255,255,0.05)', borderRadius:3, height:5 }}>
-                <div style={{
-                  width:`${player.pillars[key]}%`, height:'100%',
-                  background:'#22c55e', borderRadius:3, opacity:0.65, transition:'width 0.3s'
-                }} />
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Matchup detail */}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:18 }}>
-          {[['vs PACE', player.pillars.vsPace, '#06b6d4'], ['vs SPIN', player.pillars.vsSpin, '#8b5cf6']].map(([lbl, val, clr]) => (
-            <div key={lbl} style={{
-              background:'rgba(255,255,255,0.04)', borderRadius:10, padding:'16px 12px',
-              textAlign:'center', border:'1px solid rgba(255,255,255,0.05)'
-            }}>
-              <div style={{ fontSize:10, color:'#6b7280', letterSpacing:1, marginBottom:6 }}>{lbl}</div>
-              <div style={{ fontSize:34, fontWeight:900, color:clr }}>{val}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Footer info */}
-        <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:'#374151', marginBottom:18 }}>
-          <span>Innings quality weight: <strong style={{ color:'#6b7280' }}>{player.inningsWt}×</strong></span>
-          <span>OVR scale: 60–99</span>
-        </div>
-
-        <button onClick={onClose} style={{
-          width:'100%', padding:'11px', fontSize:13, fontWeight:600,
-          background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)',
-          borderRadius:9, color:'#9ca3af'
-        }}>← Back to cards</button>
+        )}
       </div>
-    </div>
-  );
-}
 
-/* ─────────────────────────────────────────────
-   APP
-───────────────────────────────────────────── */
-function App() {
-  const [weights,    setWeights]    = useState(DEFAULT_WEIGHTS);
-  const [selected,   setSelected]   = useState(null);
-  const [query,      setQuery]      = useState('');
-  const [roleFilter, setRoleFilter] = useState('All');
-
-  const change = useCallback((key, val) => setWeights(p => ({ ...p, [key]: val })), []);
-  const totalW = PILLAR_KEYS.reduce((s, k) => s + (weights[k] || 0), 0);
-  const totalOk = Math.abs(totalW - 100) < 1;
-
-  const sorted = useMemo(() => {
-    const q = query.toLowerCase();
-    return PLAYERS
-      .filter(p =>
-        (roleFilter === 'All' || p.role.toLowerCase().includes(roleFilter.toLowerCase())) &&
-        (p.name.toLowerCase().includes(q) || p.country.toLowerCase().includes(q))
-      )
-      .map(p => ({ ...p, _ovr: calcOVR(p, weights) }))
-      .sort((a, b) => b._ovr - a._ovr);
-  }, [weights, query, roleFilter]);
-
-  const rankColor = i => i === 0 ? '#f59e0b' : i === 1 ? '#9ca3af' : i === 2 ? '#cd7f32' : '#374151';
-
-  return (
-    <div style={{ display:'flex', minHeight:'100vh' }}>
-
-      {/* ── Sidebar ── */}
-      <aside style={{
-        width:272, flexShrink:0, background:'#0a1220',
-        padding:'22px 16px', overflowY:'auto',
-        borderRight:'1px solid rgba(255,255,255,0.05)',
-        display:'flex', flexDirection:'column'
-      }}>
-        <div style={{ marginBottom:20 }}>
-          <div style={{ fontSize:15, fontWeight:900, marginBottom:3 }}>⚙️ Pillar Weights</div>
-          <div style={{ fontSize:11, color:'#4b5563', lineHeight:1.5 }}>
-            Drag to adjust. Ratings recalculate live across all cards.
-          </div>
-        </div>
-
-        {/* Total indicator */}
-        <div style={{
-          borderRadius:8, padding:'8px 12px', marginBottom:20, fontSize:12,
-          display:'flex', justifyContent:'space-between', alignItems:'center',
-          background: totalOk ? 'rgba(34,197,94,0.1)' : 'rgba(249,115,22,0.1)',
-          border:`1px solid ${totalOk ? '#22c55e' : '#f97316'}`
-        }}>
-          <span style={{ color:'#9ca3af' }}>Total weight</span>
-          <span style={{ fontWeight:800, color: totalOk ? '#22c55e' : '#f97316' }}>
-            {totalW}%{!totalOk && ' ⚠️'}
-          </span>
-        </div>
-
-        {PILLAR_KEYS.map(k => (
-          <Slider key={k} pKey={k} value={weights[k] || 0} onChange={change} />
-        ))}
-
-        {/* Quick actions */}
-        <div style={{ display:'flex', flexDirection:'column', gap:8, marginTop:8 }}>
-          <button
-            onClick={() => setWeights(DEFAULT_WEIGHTS)}
-            style={{
-              padding:'9px 12px', fontSize:12, fontWeight:600, borderRadius:7,
-              background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'#e5e7eb'
-            }}>↺ Reset to defaults</button>
-          <button
-            onClick={() => setWeights(p => ({ ...p, popularity:0 }))}
-            style={{
-              padding:'9px 12px', fontSize:12, fontWeight:600, borderRadius:7,
-              background:'rgba(249,115,22,0.08)', border:'1px solid rgba(249,115,22,0.2)', color:'#f97316'
-            }}>☆ Zero popularity (stat-pure)</button>
-        </div>
-
-        {/* How it works */}
-        <div style={{
-          marginTop:24, padding:'12px 14px',
-          background:'rgba(255,255,255,0.02)', borderRadius:9,
-          fontSize:11, color:'#374151', lineHeight:1.75,
-          border:'1px solid rgba(255,255,255,0.04)'
-        }}>
-          <div style={{ color:'#4b5563', fontWeight:800, letterSpacing:1, marginBottom:6, fontSize:10 }}>HOW IT WORKS</div>
-          <div style={{ color:'#374151' }}>Each pillar normalised 0–100 against fixed historical floors and ceilings, then combined and mapped onto the 60–99 OVR scale.</div>
-          <div style={{ marginTop:8, color:'#4b5563' }}>Career Output = 35% Avg + 40% SR + 25% Boundary%</div>
-          <div style={{ marginTop:4, color:'#374151' }}>Innings quality weight applied for smaller samples (0.75–1.0×).</div>
-          <div style={{ marginTop:8, color:'#374151', fontStyle:'italic', borderTop:'1px solid rgba(255,255,255,0.04)', paddingTop:8 }}>
-            Tip: drag Popularity to zero to see what a purely stat-driven leaderboard looks like — and why that's a product problem.
-          </div>
-        </div>
-      </aside>
-
-      {/* ── Main ── */}
-      <main style={{ flex:1, padding:'24px 28px', overflowY:'auto' }}>
-        {/* Header */}
-        <div style={{ marginBottom:24 }}>
-          <h1 style={{ fontSize:24, fontWeight:900, letterSpacing:-0.5, marginBottom:4 }}>
-            🏏 Cricket Card Rating System
-          </h1>
-          <p style={{ color:'#4b5563', fontSize:13 }}>
-            {PLAYERS.length} players · 7 weighted pillars · OVR derived from real career data, not hand-assigned · Click any card to trace the rating
-          </p>
-        </div>
-
-        {/* Filters */}
-        <div style={{ display:'flex', gap:10, marginBottom:24, flexWrap:'wrap', alignItems:'center' }}>
-          <input
-            type="text"
-            placeholder="Search player or country…"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            style={{
-              padding:'8px 14px', fontSize:13, borderRadius:8,
-              background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)',
-              color:'#e5e7eb', width:230
-            }}
-          />
-          {['All','Batsman','Bowler','All-rounder'].map(role => (
-            <button
-              key={role}
-              onClick={() => setRoleFilter(role)}
-              style={{
-                padding:'8px 14px', fontSize:12, fontWeight:600, borderRadius:8,
-                background: roleFilter === role ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${roleFilter === role ? '#22c55e' : 'rgba(255,255,255,0.08)'}`,
-                color: roleFilter === role ? '#22c55e' : '#6b7280'
-              }}
-            >{role}</button>
-          ))}
-        </div>
-
-        {/* OVR tier legend */}
-        <div style={{ display:'flex', gap:8, marginBottom:24, flexWrap:'wrap' }}>
-          {TIERS.map(t => (
-            <div key={t.label} className="tag" style={{ background: t.bg, color: t.text }}>
-              {t.label} {t.min}+
+      {/* ── RESULT AREA ── */}
+      <div style={{ flex:1, padding:'28px 28px 0', overflowY:'auto' }}>
+        {/* Generated card + breakdown */}
+        {card && (
+          <div style={{ display:'flex', gap:32, flexWrap:'wrap', marginBottom:32, alignItems:'flex-start' }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:14, alignItems:'center' }}>
+              <BigCard card={card} displayOVR={displayOVR} isNew={isNew} />
+              <button onClick={saveCard} style={{
+                padding:'9px 20px', fontSize:12, fontWeight:700, borderRadius:8,
+                background:'rgba(34,197,94,0.12)', border:'1px solid rgba(34,197,94,0.25)', color:'#22c55e'
+              }}>+ Save to Collection</button>
             </div>
-          ))}
-        </div>
-
-        {/* Card grid */}
-        {sorted.length === 0 ? (
-          <div style={{ color:'#4b5563', fontSize:14, padding:'40px 0' }}>No players match your search.</div>
-        ) : (
-          <div style={{ display:'flex', flexWrap:'wrap', gap:18 }}>
-            {sorted.map((player, idx) => (
-              <div key={player.id} style={{ position:'relative' }}>
-                {/* Rank badge */}
-                <div style={{
-                  position:'absolute', top:-9, left:-9, zIndex:2,
-                  background:'#080f20', border:'1px solid rgba(255,255,255,0.12)',
-                  borderRadius:'50%', width:22, height:22,
-                  display:'flex', alignItems:'center', justifyContent:'center',
-                  fontSize:10, fontWeight:800, color: rankColor(idx)
-                }}>{idx + 1}</div>
-                <Card player={player} weights={weights} onSelect={setSelected} />
-              </div>
-            ))}
+            <BreakdownPanel card={card} />
           </div>
         )}
 
-        {/* Footer */}
-        <div style={{ marginTop:48, paddingTop:20, borderTop:'1px solid rgba(255,255,255,0.05)', fontSize:11, color:'#1f2937' }}>
-          Cricket Card Rating System · 7 pillars · OVR 60–99 · Built on ESPNcricinfo data
-        </div>
-      </main>
+        {/* Empty state */}
+        {!card && !generating && (
+          <div style={{ textAlign:'center', padding:'48px 0', color:'#1f2937' }}>
+            <div style={{ fontSize:48, marginBottom:12 }}>🏏</div>
+            <div style={{ fontSize:16, fontWeight:700, color:'#374151', marginBottom:6 }}>Enter a player name and click Generate</div>
+            <div style={{ fontSize:13, color:'#1f2937' }}>
+              Try: Virat Kohli · AB de Villiers · Shane Warne · MS Dhoni · Rashid Khan
+            </div>
+          </div>
+        )}
+      </div>
 
-      {selected && (
-        <Modal player={selected} weights={weights} onClose={() => setSelected(null)} />
+      {/* ── COLLECTION ── */}
+      {collection.length > 0 && (
+        <div style={{ padding:'0 28px 28px', marginTop:8 }}>
+          <div style={{ fontSize:11, color:'#4b5563', letterSpacing:2, fontWeight:700, textTransform:'uppercase', marginBottom:14 }}>
+            Your Collection ({collection.length})
+          </div>
+          <div className="collection-scroll">
+            {collection.map((c, i) => (
+              <CollectionMini key={i} card={c} onSelect={c => { setCard(c); setDisplayOVR(c.ovr); setIsNew(false); setViewCard(c); window.scrollTo({top:0,behavior:'smooth'}); }} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── WEIGHT MODAL ── */}
+      {showWeights && (
+        <WeightModal
+          weights={weights}
+          format={format}
+          onChange={changeWeight}
+          onClose={() => setShowWeights(false)}
+          onReset={() => setWeights({ ...FORMAT_CONFIG[format].weights })}
+        />
       )}
     </div>
   );
