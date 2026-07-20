@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cricket Card Rating System</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #080f20;
+      color: #e8f4f8;
+      min-height: 100vh;
+    }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #0d1526; }
+    ::-webkit-scrollbar-thumb { background: #1f2d4a; border-radius: 3px; }
+    input[type=range] {
+      -webkit-appearance: none; appearance: none;
+      height: 4px; border-radius: 2px;
+      background: rgba(255,255,255,0.12); outline: none; width: 100%;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 14px; height: 14px;
+      border-radius: 50%; cursor: pointer; border: none;
+    }
+    input[type=text] { outline: none; }
+    .player-card {
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+      cursor: pointer;
+    }
+    .player-card:hover {
+      transform: translateY(-6px) scale(1.03);
+      box-shadow: 0 16px 48px rgba(0,0,0,0.7) !important;
+    }
+    button { cursor: pointer; transition: opacity 0.15s; }
+    button:hover { opacity: 0.8; }
+    .tag {
+      display: inline-flex; align-items: center;
+      padding: 3px 8px; border-radius: 20px; font-size: 11px; font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useMemo, useCallback } = React;
+
+/* ─────────────────────────────────────────────
+   PLAYER DATA
+   All pillar values normalised 0–100.
+   Bowler cards use adapted sub-pillars:
+     battingAvg  → bowling quality (avg, inverted)
+     strikeRate  → wicket-taking rate (inverted)
+     boundaryPct → economy quality (inverted)
+───────────────────────────────────────────── */
+const PLAYERS = [
+  {
+    id:1, name:"Virat Kohli", country:"India", code:"IND", flag:"🇮🇳",
+    role:"Batsman", inningsWt:1.0,
+    note:"Six years at #1, dominant across all conditions — the identity card of modern cricket.",
+    pillars:{ battingAvg:88, strikeRate:75, boundaryPct:72, peakICC:95, popularity:100,
+              roleReliability:95, oppositionQuality:92, vsPace:88, vsSpin:90, currentForm:72 }
+  },
+  {
+    id:2, name:"AB de Villiers", country:"South Africa", code:"SA", flag:"🇿🇦",
+    role:"Batsman (WK)", inningsWt:1.0,
+    note:"Peak SR and average are both historical outliers. Retired, but no defensible leaderboard drops him far.",
+    pillars:{ battingAvg:90, strikeRate:95, boundaryPct:92, peakICC:95, popularity:88,
+              roleReliability:88, oppositionQuality:90, vsPace:93, vsSpin:90, currentForm:20 }
+  },
+  {
+    id:3, name:"Suryakumar Yadav", country:"India", code:"IND", flag:"🇮🇳",
+    role:"Batsman", inningsWt:0.95,
+    note:"170+ sustained SR in T20I top order. Boundary% is the stat that doesn't average away.",
+    pillars:{ battingAvg:78, strikeRate:98, boundaryPct:98, peakICC:95, popularity:82,
+              roleReliability:82, oppositionQuality:85, vsPace:93, vsSpin:88, currentForm:87 }
+  },
+  {
+    id:4, name:"MS Dhoni", country:"India", code:"IND", flag:"🇮🇳",
+    role:"WK-Batsman", inningsWt:1.0,
+    note:"The original finisher. Finishing record and clutch delivery define this card, not raw SR.",
+    pillars:{ battingAvg:78, strikeRate:85, boundaryPct:75, peakICC:92, popularity:97,
+              roleReliability:92, oppositionQuality:88, vsPace:82, vsSpin:85, currentForm:30 }
+  },
+  {
+    id:5, name:"Rohit Sharma", country:"India", code:"IND", flag:"🇮🇳",
+    role:"Batsman", inningsWt:1.0,
+    note:"Most T20I hundreds. Power at the top with the range to go at 150+ when needed.",
+    pillars:{ battingAvg:80, strikeRate:80, boundaryPct:78, peakICC:88, popularity:95,
+              roleReliability:90, oppositionQuality:85, vsPace:82, vsSpin:85, currentForm:60 }
+  },
+  {
+    id:6, name:"Jasprit Bumrah", country:"India", code:"IND", flag:"🇮🇳",
+    role:"Bowler", inningsWt:0.95,
+    note:"Unplayable in powerplay and death. Bowling pillars adapted (avg/SR/economy inverted).",
+    pillars:{ battingAvg:71, strikeRate:78, boundaryPct:75, peakICC:93, popularity:90,
+              roleReliability:88, oppositionQuality:92, vsPace:95, vsSpin:50, currentForm:88 }
+  },
+  {
+    id:7, name:"Babar Azam", country:"Pakistan", code:"PAK", flag:"🇵🇰",
+    role:"Batsman", inningsWt:1.0,
+    note:"50+ T20I average. The textbook case of extraordinary consistency hiding a moderate SR.",
+    pillars:{ battingAvg:85, strikeRate:72, boundaryPct:68, peakICC:90, popularity:88,
+              roleReliability:93, oppositionQuality:82, vsPace:85, vsSpin:82, currentForm:75 }
+  },
+  {
+    id:8, name:"Rashid Khan", country:"Afghanistan", code:"AFG", flag:"🇦🇫",
+    role:"Bowler", inningsWt:1.0,
+    note:"Best T20 economy for a frontline spinner. Devastating in middle overs across every league.",
+    pillars:{ battingAvg:85, strikeRate:82, boundaryPct:90, peakICC:85, popularity:75,
+              roleReliability:85, oppositionQuality:82, vsPace:50, vsSpin:95, currentForm:80 }
+  },
+  {
+    id:9, name:"Jos Buttler", country:"England", code:"ENG", flag:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+    role:"WK-Batsman", inningsWt:0.95,
+    note:"Anchors and explodes. Versatility across positions makes him England's most dangerous bat.",
+    pillars:{ battingAvg:78, strikeRate:88, boundaryPct:85, peakICC:85, popularity:82,
+              roleReliability:88, oppositionQuality:82, vsPace:85, vsSpin:80, currentForm:72 }
+  },
+  {
+    id:10, name:"Kane Williamson", country:"New Zealand", code:"NZ", flag:"🇳🇿",
+    role:"Batsman", inningsWt:1.0,
+    note:"Elite average covers a lower SR. The clearest example of why one stat is never enough.",
+    pillars:{ battingAvg:88, strikeRate:68, boundaryPct:65, peakICC:85, popularity:78,
+              roleReliability:92, oppositionQuality:88, vsPace:88, vsSpin:85, currentForm:70 }
+  },
+  {
+    id:11, name:"David Warner", country:"Australia", code:"AUS", flag:"🇦🇺",
+    role:"Batsman", inningsWt:1.0,
+    note:"40+ average across a decade at the top. The original power opener who defined the role.",
+    pillars:{ battingAvg:82, strikeRate:82, boundaryPct:80, peakICC:88, popularity:85,
+              roleReliability:90, oppositionQuality:85, vsPace:80, vsSpin:78, currentForm:25 }
+  },
+  {
+    id:12, name:"Ben Stokes", country:"England", code:"ENG", flag:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+    role:"All-rounder", inningsWt:1.0,
+    note:"Clutch match-winner across all conditions. Retired from T20I; output still demands a slot.",
+    pillars:{ battingAvg:72, strikeRate:78, boundaryPct:75, peakICC:82, popularity:85,
+              roleReliability:80, oppositionQuality:88, vsPace:80, vsSpin:78, currentForm:45 }
+  },
+  {
+    id:13, name:"Shaheen Afridi", country:"Pakistan", code:"PAK", flag:"🇵🇰",
+    role:"Bowler", inningsWt:0.90,
+    note:"Left-arm pace with elite powerplay threat. Dangerous to top-order right-handers globally.",
+    pillars:{ battingAvg:72, strikeRate:75, boundaryPct:72, peakICC:82, popularity:80,
+              roleReliability:80, oppositionQuality:82, vsPace:88, vsSpin:50, currentForm:75 }
+  },
+  {
+    id:14, name:"Hardik Pandya", country:"India", code:"IND", flag:"🇮🇳",
+    role:"All-rounder", inningsWt:0.90,
+    note:"Rare upper-order hitting + seam bowling in one card. Role Reliability reflects injury floor.",
+    pillars:{ battingAvg:70, strikeRate:85, boundaryPct:82, peakICC:80, popularity:88,
+              roleReliability:72, oppositionQuality:80, vsPace:80, vsSpin:72, currentForm:65 }
+  },
+  {
+    id:15, name:"Mitchell Starc", country:"Australia", code:"AUS", flag:"🇦🇺",
+    role:"Bowler", inningsWt:0.90,
+    note:"Left-arm pace with match-defining powerplay spells. A big-game bowler across formats.",
+    pillars:{ battingAvg:68, strikeRate:72, boundaryPct:70, peakICC:82, popularity:78,
+              roleReliability:78, oppositionQuality:82, vsPace:85, vsSpin:50, currentForm:68 }
+  },
+];
+
+/* ─────────────────────────────────────────────
+   PILLARS CONFIG
+───────────────────────────────────────────── */
+const PILLAR_KEYS = [
+  'careerOutput','peakICC','popularity',
+  'roleReliability','oppositionQuality','matchupProfile','currentForm'
+];
+
+const DEFAULT_WEIGHTS = {
+  careerOutput:25, peakICC:20, popularity:15,
+  roleReliability:10, oppositionQuality:10, matchupProfile:10, currentForm:10
+};
+
+const PILLAR_META = {
+  careerOutput:     { label:"Career Output",      color:"#22c55e", icon:"📊", desc:"Avg ×35%  ·  SR ×40%  ·  Boundary% ×25%" },
+  peakICC:          { label:"Peak ICC Rating",    color:"#a855f7", icon:"🏆", desc:"Highest ICC ranking ever achieved (700–920 band)" },
+  popularity:       { label:"Popularity",         color:"#f97316", icon:"⭐", desc:"Log-scaled Instagram following" },
+  roleReliability:  { label:"Role Reliability",   color:"#3b82f6", icon:"🎯", desc:"XI regularity · not-out % · position consistency" },
+  oppositionQuality:{ label:"Opposition Quality", color:"#ef4444", icon:"⚔️", desc:"Record filtered to top-10 ranked opposition" },
+  matchupProfile:   { label:"Matchup Profile",    color:"#06b6d4", icon:"🔄", desc:"Average of vs Pace & vs Spin ratings" },
+  currentForm:      { label:"Current Form",       color:"#eab308", icon:"📈", desc:"Current ICC rating — smallest weight by design" },
+};
+
+/* ─────────────────────────────────────────────
+   TIERS
+───────────────────────────────────────────── */
+const TIERS = [
+  { min:95, label:"LEGEND", bg:"linear-gradient(145deg,#78350f,#f59e0b,#92400e)", text:"#1c0a00" },
+  { min:90, label:"ICON",   bg:"linear-gradient(145deg,#3b0764,#a855f7,#4c1d95)", text:"#f3e8ff" },
+  { min:85, label:"ELITE",  bg:"linear-gradient(145deg,#1e3a8a,#3b82f6,#1d4ed8)", text:"#dbeafe" },
+  { min:80, label:"STAR",   bg:"linear-gradient(145deg,#134e4a,#14b8a6,#0f766e)", text:"#ccfbf1" },
+  { min:75, label:"PRO",    bg:"linear-gradient(145deg,#14532d,#22c55e,#15803d)", text:"#dcfce7" },
+  { min:0,  label:"RARE",   bg:"linear-gradient(145deg,#1f2937,#6b7280,#374151)", text:"#f3f4f6" },
+];
+const getTier = ovr => TIERS.find(t => ovr >= t.min);
+
+/* ─────────────────────────────────────────────
+   COMPUTATION
+───────────────────────────────────────────── */
+function getPillarScores(player) {
+  const p = player.pillars;
+  return {
+    careerOutput:     p.battingAvg * 0.35 + p.strikeRate * 0.40 + p.boundaryPct * 0.25,
+    peakICC:          p.peakICC,
+    popularity:       p.popularity,
+    roleReliability:  p.roleReliability,
+    oppositionQuality:p.oppositionQuality,
+    matchupProfile:   (p.vsPace + p.vsSpin) / 2,
+    currentForm:      p.currentForm,
+  };
+}
+
+function calcOVR(player, weights) {
+  const scores = getPillarScores(player);
+  const total = PILLAR_KEYS.reduce((s, k) => s + (weights[k] || 0), 0) || 1;
+  const raw   = PILLAR_KEYS.reduce((s, k) => s + scores[k] * (weights[k] || 0) / total, 0);
+  return Math.round(60 + (raw * (player.inningsWt || 1)) / 100 * 39);
+}
+
+/* ─────────────────────────────────────────────
+   SLIDER
+───────────────────────────────────────────── */
+function Slider({ pKey, value, onChange }) {
+  const { label, color, icon, desc } = PILLAR_META[pKey];
+  return (
+    <div style={{ marginBottom:16 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5, alignItems:'center' }}>
+        <span style={{ fontSize:12, fontWeight:700, color }}>{icon} {label}</span>
+        <span style={{ fontSize:14, fontWeight:800, color:'#e5e7eb', minWidth:32, textAlign:'right' }}>{value}%</span>
+      </div>
+      <input type="range" min={0} max={50} value={value}
+        onChange={e => onChange(pKey, +e.target.value)}
+        style={{ accentColor: color }} />
+      <div style={{ fontSize:10, color:'#4b5563', marginTop:3 }}>{desc}</div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   PLAYER CARD
+───────────────────────────────────────────── */
+function Card({ player, weights, onSelect }) {
+  const ovr  = calcOVR(player, weights);
+  const tier = getTier(ovr);
+  const p    = player.pillars;
+
+  return (
+    <div className="player-card" onClick={() => onSelect(player)}
+      style={{
+        background: tier.bg, color: tier.text,
+        borderRadius:14, padding:16, width:188,
+        boxShadow:'0 4px 20px rgba(0,0,0,0.5)',
+        display:'flex', flexDirection:'column', gap:8,
+        userSelect:'none',
+      }}>
+
+      {/* OVR + tier badge */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+        <div style={{ fontSize:50, fontWeight:900, lineHeight:1 }}>{ovr}</div>
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:4 }}>
+          <div style={{
+            fontSize:9, fontWeight:800, letterSpacing:1.5,
+            background:'rgba(0,0,0,0.22)', padding:'3px 7px', borderRadius:4
+          }}>{tier.label}</div>
+          <div style={{ fontSize:10, fontWeight:700, opacity:0.8, letterSpacing:0.5 }}>
+            {player.role.split(' ')[0].toUpperCase()}
+          </div>
+        </div>
+      </div>
+
+      {/* Flag portrait */}
+      <div style={{
+        background:'rgba(0,0,0,0.22)', borderRadius:10,
+        padding:'12px 0', textAlign:'center', fontSize:44
+      }}>
+        {player.flag}
+      </div>
+
+      {/* Name */}
+      <div style={{ fontWeight:900, fontSize:13, textAlign:'center', lineHeight:1.25, letterSpacing:0.2 }}>
+        {player.name}
+      </div>
+      <div style={{ fontSize:10, textAlign:'center', opacity:0.6, letterSpacing:0.5 }}>
+        {player.code}
+      </div>
+
+      {/* Key attributes grid */}
+      <div style={{
+        display:'grid', gridTemplateColumns:'1fr 1fr', gap:'6px 10px',
+        background:'rgba(0,0,0,0.18)', borderRadius:9, padding:'10px 12px',
+        fontSize:11
+      }}>
+        {[['v Pace', p.vsPace],['v Spin', p.vsSpin],['Form', p.currentForm],['Legacy', p.peakICC]].map(([k,v]) => (
+          <div key={k}>
+            <div style={{ opacity:0.55, fontSize:9, letterSpacing:0.5, marginBottom:1 }}>{k}</div>
+            <div style={{ fontWeight:800, fontSize:15 }}>{v}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   BREAKDOWN MODAL
+───────────────────────────────────────────── */
+function Modal({ player, weights, onClose }) {
+  const ovr    = calcOVR(player, weights);
+  const tier   = getTier(ovr);
+  const scores = getPillarScores(player);
+  const total  = PILLAR_KEYS.reduce((s, k) => s + (weights[k] || 0), 0) || 1;
+
+  return (
+    <div
+      style={{
+        position:'fixed', inset:0, background:'rgba(0,0,0,0.88)',
+        display:'flex', alignItems:'center', justifyContent:'center',
+        zIndex:1000, padding:20
+      }}
+      onClick={onClose}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background:'#0f1929', borderRadius:18, padding:'28px 28px 24px',
+          width:'100%', maxWidth:540, maxHeight:'92vh', overflowY:'auto',
+          border:'1px solid rgba(255,255,255,0.07)',
+          boxShadow:'0 24px 80px rgba(0,0,0,0.8)'
+        }}
+      >
+        {/* Header */}
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:18 }}>
+          <div>
+            <div style={{ fontSize:24, fontWeight:900, letterSpacing:-0.5 }}>{player.name}</div>
+            <div style={{ fontSize:12, color:'#6b7280', marginTop:4 }}>
+              {player.flag} {player.country} · {player.role}
+            </div>
+          </div>
+          <div style={{ textAlign:'right' }}>
+            <div style={{
+              fontSize:54, fontWeight:900, lineHeight:1,
+              background:tier.bg, WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent'
+            }}>{ovr}</div>
+            <div style={{ fontSize:10, color:'#6b7280', letterSpacing:1 }}>{tier.label}</div>
+          </div>
+        </div>
+
+        {/* Player note */}
+        {player.note && (
+          <div style={{
+            background:'rgba(34,197,94,0.07)', borderLeft:'3px solid #22c55e',
+            padding:'10px 14px', borderRadius:6, fontSize:13, color:'#d1d5db',
+            lineHeight:1.6, marginBottom:22
+          }}>{player.note}</div>
+        )}
+
+        {/* Pillar breakdown */}
+        <div style={{ marginBottom:22 }}>
+          <div style={{
+            fontSize:10, color:'#4b5563', letterSpacing:2, fontWeight:700,
+            textTransform:'uppercase', marginBottom:14
+          }}>Pillar Breakdown</div>
+
+          {PILLAR_KEYS.map(key => {
+            const { label, color, icon } = PILLAR_META[key];
+            const score   = scores[key];
+            const contrib = (score * (weights[key] || 0) / total).toFixed(1);
+            return (
+              <div key={key} style={{ marginBottom:12 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5, alignItems:'center', fontSize:12 }}>
+                  <span style={{ color, fontWeight:700 }}>{icon} {label}</span>
+                  <span style={{ color:'#9ca3af', fontSize:11 }}>
+                    <span style={{ color:'#e5e7eb', fontWeight:800 }}>{Math.round(score)}</span>
+                    <span style={{ color:'#374151' }}> × {weights[key] || 0}% = </span>
+                    <span style={{ color, fontWeight:700 }}>{contrib} pts</span>
+                  </span>
+                </div>
+                <div style={{ background:'rgba(255,255,255,0.05)', borderRadius:4, height:8, overflow:'hidden' }}>
+                  <div style={{
+                    width:`${score}%`, height:'100%', background:color,
+                    borderRadius:4, transition:'width 0.3s ease'
+                  }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Career output sub-pillars */}
+        <div style={{ marginBottom:22 }}>
+          <div style={{
+            fontSize:10, color:'#4b5563', letterSpacing:2, fontWeight:700,
+            textTransform:'uppercase', marginBottom:14
+          }}>
+            Career Output Sub-Pillars → {Math.round(scores.careerOutput)}
+          </div>
+          {[
+            ['Batting Avg / Bowling Quality', 'battingAvg',  35],
+            ['Strike Rate / Wicket Rate',     'strikeRate',  40],
+            ['Boundary % / Economy Quality',  'boundaryPct', 25],
+          ].map(([lbl, key, w]) => (
+            <div key={key} style={{ marginBottom:9 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4, fontSize:11, color:'#9ca3af' }}>
+                <span>{lbl}</span>
+                <span style={{ color:'#6b7280' }}>{player.pillars[key]} <span style={{ color:'#374151' }}>({w}%)</span></span>
+              </div>
+              <div style={{ background:'rgba(255,255,255,0.05)', borderRadius:3, height:5 }}>
+                <div style={{
+                  width:`${player.pillars[key]}%`, height:'100%',
+                  background:'#22c55e', borderRadius:3, opacity:0.65, transition:'width 0.3s'
+                }} />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Matchup detail */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:18 }}>
+          {[['vs PACE', player.pillars.vsPace, '#06b6d4'], ['vs SPIN', player.pillars.vsSpin, '#8b5cf6']].map(([lbl, val, clr]) => (
+            <div key={lbl} style={{
+              background:'rgba(255,255,255,0.04)', borderRadius:10, padding:'16px 12px',
+              textAlign:'center', border:'1px solid rgba(255,255,255,0.05)'
+            }}>
+              <div style={{ fontSize:10, color:'#6b7280', letterSpacing:1, marginBottom:6 }}>{lbl}</div>
+              <div style={{ fontSize:34, fontWeight:900, color:clr }}>{val}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer info */}
+        <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:'#374151', marginBottom:18 }}>
+          <span>Innings quality weight: <strong style={{ color:'#6b7280' }}>{player.inningsWt}×</strong></span>
+          <span>OVR scale: 60–99</span>
+        </div>
+
+        <button onClick={onClose} style={{
+          width:'100%', padding:'11px', fontSize:13, fontWeight:600,
+          background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)',
+          borderRadius:9, color:'#9ca3af'
+        }}>← Back to cards</button>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   APP
+───────────────────────────────────────────── */
+function App() {
+  const [weights,    setWeights]    = useState(DEFAULT_WEIGHTS);
+  const [selected,   setSelected]   = useState(null);
+  const [query,      setQuery]      = useState('');
+  const [roleFilter, setRoleFilter] = useState('All');
+
+  const change = useCallback((key, val) => setWeights(p => ({ ...p, [key]: val })), []);
+  const totalW = PILLAR_KEYS.reduce((s, k) => s + (weights[k] || 0), 0);
+  const totalOk = Math.abs(totalW - 100) < 1;
+
+  const sorted = useMemo(() => {
+    const q = query.toLowerCase();
+    return PLAYERS
+      .filter(p =>
+        (roleFilter === 'All' || p.role.toLowerCase().includes(roleFilter.toLowerCase())) &&
+        (p.name.toLowerCase().includes(q) || p.country.toLowerCase().includes(q))
+      )
+      .map(p => ({ ...p, _ovr: calcOVR(p, weights) }))
+      .sort((a, b) => b._ovr - a._ovr);
+  }, [weights, query, roleFilter]);
+
+  const rankColor = i => i === 0 ? '#f59e0b' : i === 1 ? '#9ca3af' : i === 2 ? '#cd7f32' : '#374151';
+
+  return (
+    <div style={{ display:'flex', minHeight:'100vh' }}>
+
+      {/* ── Sidebar ── */}
+      <aside style={{
+        width:272, flexShrink:0, background:'#0a1220',
+        padding:'22px 16px', overflowY:'auto',
+        borderRight:'1px solid rgba(255,255,255,0.05)',
+        display:'flex', flexDirection:'column'
+      }}>
+        <div style={{ marginBottom:20 }}>
+          <div style={{ fontSize:15, fontWeight:900, marginBottom:3 }}>⚙️ Pillar Weights</div>
+          <div style={{ fontSize:11, color:'#4b5563', lineHeight:1.5 }}>
+            Drag to adjust. Ratings recalculate live across all cards.
+          </div>
+        </div>
+
+        {/* Total indicator */}
+        <div style={{
+          borderRadius:8, padding:'8px 12px', marginBottom:20, fontSize:12,
+          display:'flex', justifyContent:'space-between', alignItems:'center',
+          background: totalOk ? 'rgba(34,197,94,0.1)' : 'rgba(249,115,22,0.1)',
+          border:`1px solid ${totalOk ? '#22c55e' : '#f97316'}`
+        }}>
+          <span style={{ color:'#9ca3af' }}>Total weight</span>
+          <span style={{ fontWeight:800, color: totalOk ? '#22c55e' : '#f97316' }}>
+            {totalW}%{!totalOk && ' ⚠️'}
+          </span>
+        </div>
+
+        {PILLAR_KEYS.map(k => (
+          <Slider key={k} pKey={k} value={weights[k] || 0} onChange={change} />
+        ))}
+
+        {/* Quick actions */}
+        <div style={{ display:'flex', flexDirection:'column', gap:8, marginTop:8 }}>
+          <button
+            onClick={() => setWeights(DEFAULT_WEIGHTS)}
+            style={{
+              padding:'9px 12px', fontSize:12, fontWeight:600, borderRadius:7,
+              background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'#e5e7eb'
+            }}>↺ Reset to defaults</button>
+          <button
+            onClick={() => setWeights(p => ({ ...p, popularity:0 }))}
+            style={{
+              padding:'9px 12px', fontSize:12, fontWeight:600, borderRadius:7,
+              background:'rgba(249,115,22,0.08)', border:'1px solid rgba(249,115,22,0.2)', color:'#f97316'
+            }}>☆ Zero popularity (stat-pure)</button>
+        </div>
+
+        {/* How it works */}
+        <div style={{
+          marginTop:24, padding:'12px 14px',
+          background:'rgba(255,255,255,0.02)', borderRadius:9,
+          fontSize:11, color:'#374151', lineHeight:1.75,
+          border:'1px solid rgba(255,255,255,0.04)'
+        }}>
+          <div style={{ color:'#4b5563', fontWeight:800, letterSpacing:1, marginBottom:6, fontSize:10 }}>HOW IT WORKS</div>
+          <div style={{ color:'#374151' }}>Each pillar normalised 0–100 against fixed historical floors and ceilings, then combined and mapped onto the 60–99 OVR scale.</div>
+          <div style={{ marginTop:8, color:'#4b5563' }}>Career Output = 35% Avg + 40% SR + 25% Boundary%</div>
+          <div style={{ marginTop:4, color:'#374151' }}>Innings quality weight applied for smaller samples (0.75–1.0×).</div>
+          <div style={{ marginTop:8, color:'#374151', fontStyle:'italic', borderTop:'1px solid rgba(255,255,255,0.04)', paddingTop:8 }}>
+            Tip: drag Popularity to zero to see what a purely stat-driven leaderboard looks like — and why that's a product problem.
+          </div>
+        </div>
+      </aside>
+
+      {/* ── Main ── */}
+      <main style={{ flex:1, padding:'24px 28px', overflowY:'auto' }}>
+        {/* Header */}
+        <div style={{ marginBottom:24 }}>
+          <h1 style={{ fontSize:24, fontWeight:900, letterSpacing:-0.5, marginBottom:4 }}>
+            🏏 Cricket Card Rating System
+          </h1>
+          <p style={{ color:'#4b5563', fontSize:13 }}>
+            {PLAYERS.length} players · 7 weighted pillars · OVR derived from real career data, not hand-assigned · Click any card to trace the rating
+          </p>
+        </div>
+
+        {/* Filters */}
+        <div style={{ display:'flex', gap:10, marginBottom:24, flexWrap:'wrap', alignItems:'center' }}>
+          <input
+            type="text"
+            placeholder="Search player or country…"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            style={{
+              padding:'8px 14px', fontSize:13, borderRadius:8,
+              background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)',
+              color:'#e5e7eb', width:230
+            }}
+          />
+          {['All','Batsman','Bowler','All-rounder'].map(role => (
+            <button
+              key={role}
+              onClick={() => setRoleFilter(role)}
+              style={{
+                padding:'8px 14px', fontSize:12, fontWeight:600, borderRadius:8,
+                background: roleFilter === role ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${roleFilter === role ? '#22c55e' : 'rgba(255,255,255,0.08)'}`,
+                color: roleFilter === role ? '#22c55e' : '#6b7280'
+              }}
+            >{role}</button>
+          ))}
+        </div>
+
+        {/* OVR tier legend */}
+        <div style={{ display:'flex', gap:8, marginBottom:24, flexWrap:'wrap' }}>
+          {TIERS.map(t => (
+            <div key={t.label} className="tag" style={{ background: t.bg, color: t.text }}>
+              {t.label} {t.min}+
+            </div>
+          ))}
+        </div>
+
+        {/* Card grid */}
+        {sorted.length === 0 ? (
+          <div style={{ color:'#4b5563', fontSize:14, padding:'40px 0' }}>No players match your search.</div>
+        ) : (
+          <div style={{ display:'flex', flexWrap:'wrap', gap:18 }}>
+            {sorted.map((player, idx) => (
+              <div key={player.id} style={{ position:'relative' }}>
+                {/* Rank badge */}
+                <div style={{
+                  position:'absolute', top:-9, left:-9, zIndex:2,
+                  background:'#080f20', border:'1px solid rgba(255,255,255,0.12)',
+                  borderRadius:'50%', width:22, height:22,
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  fontSize:10, fontWeight:800, color: rankColor(idx)
+                }}>{idx + 1}</div>
+                <Card player={player} weights={weights} onSelect={setSelected} />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Footer */}
+        <div style={{ marginTop:48, paddingTop:20, borderTop:'1px solid rgba(255,255,255,0.05)', fontSize:11, color:'#1f2937' }}>
+          Cricket Card Rating System · 7 pillars · OVR 60–99 · Built on ESPNcricinfo data
+        </div>
+      </main>
+
+      {selected && (
+        <Modal player={selected} weights={weights} onClose={() => setSelected(null)} />
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
