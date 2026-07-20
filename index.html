@@ -1322,21 +1322,18 @@ function PlayerDatabase({ format, year, weights, onSelectPlayer }) {
           <div style={{ padding:'24px', textAlign:'center', color:'#374151', fontSize:13 }}>No players match this filter.</div>
         )}
       </div>
-      <div style={{ marginTop:10, fontSize:11, color:'#374151' }}>Click any row to open the player detail page and OVR history graph.</div>
+      <div style={{ marginTop:10, fontSize:11, color:'#374151' }}>Click any row to generate that player's card and see their OVR history graph.</div>
     </div>
   );
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   PLAYER DETAIL MODAL
+   OVR HISTORY PANEL (inline, right column of result area)
 ═══════════════════════════════════════════════════════════════ */
-function PlayerDetailModal({ player, initFormat, year, onClose, onGenerate }) {
-  const [localFormat, setLocalFormat] = useState(initFormat);
-
-  const eligibleFormats = useMemo(
-    () => FORMAT_KEYS.map(f => ({ f, eligible: isPlayerEligible(player, f).ok })),
-    [player]
-  );
+function OVRHistoryPanel({ card }) {
+  const player = card.player;
+  const format = card.format;
+  const year   = card.year;
 
   const yearStart = player.ay[0];
   const yearEnd   = Math.min(player.ay[1] + 4, 2026);
@@ -1348,19 +1345,18 @@ function PlayerDetailModal({ player, initFormat, year, onClose, onGenerate }) {
   }, [yearStart, yearEnd]);
 
   const graphData = useMemo(() => {
-    const wts = FORMAT_CONFIG[localFormat].weights;
+    const wts = FORMAT_CONFIG[format].weights;
     return graphYears.map(y => {
-      const c = buildCard(player, localFormat, y, wts);
+      const c = buildCard(player, format, y, wts);
       return { year: y, ovr: c.ovr, badge: c.yf.badge };
     });
-  }, [player, localFormat, graphYears]);
+  }, [player, format, graphYears]);
 
   const clampedYear = Math.max(yearStart, Math.min(yearEnd, year));
   const currentData = graphData.find(d => d.year === clampedYear) || graphData[0];
 
-  /* SVG layout */
-  const SVG_W = 560, SVG_H = 185;
-  const PL = 40, PR = 12, PT = 14, PB = 30;
+  const SVG_W = 480, SVG_H = 200;
+  const PL = 40, PR = 12, PT = 16, PB = 32;
   const CW = SVG_W - PL - PR, CH = SVG_H - PT - PB;
   const n  = graphYears.length;
 
@@ -1386,182 +1382,105 @@ function PlayerDetailModal({ player, initFormat, year, onClose, onGenerate }) {
 
   const gridOVRs = [65, 70, 75, 80, 85, 90, 95];
   const xStep    = n > 30 ? 5 : n > 15 ? 3 : n > 8 ? 2 : 1;
-  const tierColor = currentData ? (getTier(currentData.ovr) || {}).color || '#6b7280' : '#6b7280';
-  const eraColor  = currentData ? ERA_DOT[currentData.badge] || '#6b7280' : '#6b7280';
 
   return (
-    <div onClick={e => e.target === e.currentTarget && onClose()} style={{
-      position:'fixed', inset:0, zIndex:500,
-      background:'rgba(0,0,0,0.82)', backdropFilter:'blur(5px)',
-      display:'flex', alignItems:'center', justifyContent:'center',
-      padding:20, overflow:'auto'
+    <div style={{
+      flex: '1 1 340px', minWidth: 300,
+      background: 'rgba(255,255,255,0.025)',
+      border: '1px solid rgba(255,255,255,0.07)',
+      borderRadius: 12, padding: '16px 18px',
     }}>
-      <div style={{
-        background:'#0e1829', border:'1px solid rgba(255,255,255,0.09)',
-        borderRadius:16, width:'100%', maxWidth:680, padding:'28px 30px',
-        position:'relative',
-      }}>
+      <div style={{ fontSize:10, color:'#4b5563', letterSpacing:1.5, fontWeight:700, marginBottom:12, textTransform:'uppercase' }}>
+        OVR over the years · {FORMAT_CONFIG[format].label}
+      </div>
 
-        {/* Close */}
-        <button onClick={onClose} style={{
-          position:'absolute', top:14, right:14, width:30, height:30, borderRadius:8,
-          background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.1)',
-          color:'#9ca3af', fontSize:18, display:'flex', alignItems:'center', justifyContent:'center'
-        }}>x</button>
+      {graphYears.length >= 2 ? (
+        <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`}
+          style={{ width:'100%', height:'auto', display:'block', borderRadius:6 }}>
 
-        {/* Player header */}
-        <div style={{ display:'flex', alignItems:'flex-start', gap:16, marginBottom:22 }}>
-          <span style={{ fontSize:46, lineHeight:1 }}>{player.flag}</span>
-          <div style={{ flex:1 }}>
-            <div style={{ fontSize:20, fontWeight:900, letterSpacing:-0.3 }}>{player.name}</div>
-            <div style={{ fontSize:11, color:'#9ca3af', marginTop:4 }}>
-              {player.country} · {player.role} · {yearStart}–{player.ay[1] >= 2026 ? 'present' : player.ay[1]}
-            </div>
-            {player.note && (
-              <div style={{ fontSize:11, color:'#4b5563', marginTop:4, fontStyle:'italic' }}>{player.note}</div>
-            )}
-          </div>
-          {currentData && (
-            <div style={{ textAlign:'center', minWidth:68, flexShrink:0 }}>
-              <div style={{ fontSize:10, color:'#4b5563', letterSpacing:1, marginBottom:4 }}>{localFormat} {clampedYear}</div>
-              <div style={{ fontSize:34, fontWeight:900, lineHeight:1, color:tierColor }}>{currentData.ovr}</div>
-              <div style={{ fontSize:9, color:eraColor, marginTop:3, fontWeight:700 }}>{currentData.badge}</div>
-            </div>
-          )}
-        </div>
-
-        {/* Format tabs */}
-        <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:18 }}>
-          {eligibleFormats.map(({ f, eligible }) => {
-            const fc = FORMAT_CONFIG[f];
-            const active = localFormat === f;
+          {/* Era zone bands */}
+          {graphData.map((d, i) => {
+            const x1 = i === 0 ? PL : (xs(d.year) + xs(graphData[i - 1].year)) / 2;
+            const x2 = i === graphData.length - 1 ? PL + CW : (xs(d.year) + xs(graphData[i + 1].year)) / 2;
             return (
-              <button key={f}
-                onClick={() => eligible && setLocalFormat(f)}
-                title={eligible ? fc.label : `Not eligible for ${f}`}
-                style={{
-                  padding:'4px 11px', fontSize:11, fontWeight:700, borderRadius:7,
-                  background: active ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.04)',
-                  border: `1px solid ${active ? '#6366f1' : 'rgba(255,255,255,0.08)'}`,
-                  color: active ? '#818cf8' : eligible ? '#6b7280' : '#2d3748',
-                  opacity: eligible ? 1 : 0.4,
-                  cursor: eligible ? 'pointer' : 'not-allowed',
-                }}>{fc.emoji} {fc.label}</button>
+              <rect key={`z${i}`} x={x1} y={PT} width={Math.max(0, x2 - x1)} height={CH}
+                fill={ERA_ZONE[d.badge] || 'transparent'} />
             );
           })}
-        </div>
 
-        {/* OVR History Graph */}
-        <div style={{ marginBottom:16 }}>
-          <div style={{ fontSize:10, color:'#4b5563', letterSpacing:1.5, fontWeight:700, marginBottom:10, textTransform:'uppercase' }}>
-            OVR over the years · {localFormat}
-          </div>
-          {graphYears.length >= 2 ? (
-            <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`}
-              style={{ width:'100%', height:'auto', display:'block', borderRadius:8, background:'rgba(255,255,255,0.02)' }}>
+          {/* Grid lines */}
+          {gridOVRs.map(ovr => (
+            <g key={ovr}>
+              <line x1={PL} x2={PL + CW} y1={ys(ovr)} y2={ys(ovr)}
+                stroke="rgba(255,255,255,0.06)" strokeWidth={1} />
+              <text x={PL - 6} y={ys(ovr)} textAnchor="end" fontSize="9"
+                fill="#374151" dominantBaseline="middle">{ovr}</text>
+            </g>
+          ))}
 
-              {/* Era zone bands */}
-              {graphData.map((d, i) => {
-                const x1 = i === 0 ? PL : (xs(d.year) + xs(graphData[i - 1].year)) / 2;
-                const x2 = i === graphData.length - 1 ? PL + CW : (xs(d.year) + xs(graphData[i + 1].year)) / 2;
-                return (
-                  <rect key={`z${i}`} x={x1} y={PT} width={Math.max(0, x2 - x1)} height={CH}
-                    fill={ERA_ZONE[d.badge] || 'rgba(255,255,255,0.02)'} />
-                );
-              })}
+          {/* Axes */}
+          <line x1={PL} x2={PL + CW} y1={PT + CH} y2={PT + CH} stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
+          <line x1={PL} x2={PL} y1={PT} y2={PT + CH} stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
 
-              {/* Grid lines */}
-              {gridOVRs.map(ovr => (
-                <g key={ovr}>
-                  <line x1={PL} x2={PL + CW} y1={ys(ovr)} y2={ys(ovr)}
-                    stroke="rgba(255,255,255,0.06)" strokeWidth={1} />
-                  <text x={PL - 6} y={ys(ovr)} textAnchor="end" fontSize="9"
-                    fill="#374151" dominantBaseline="middle">{ovr}</text>
-                </g>
-              ))}
+          {/* X-axis labels */}
+          {graphYears.filter((y, i) => i % xStep === 0 || i === graphYears.length - 1).map(y => (
+            <text key={y} x={xs(y)} y={PT + CH + 18} textAnchor="middle" fontSize="9" fill="#374151">{y}</text>
+          ))}
 
-              {/* Axes */}
-              <line x1={PL} x2={PL + CW} y1={PT + CH} y2={PT + CH} stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
-              <line x1={PL} x2={PL} y1={PT} y2={PT + CH} stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
+          {/* Current year marker */}
+          <line x1={xs(clampedYear)} x2={xs(clampedYear)} y1={PT} y2={PT + CH}
+            stroke="rgba(255,255,255,0.35)" strokeWidth={1.5} strokeDasharray="4,3" />
 
-              {/* X-axis labels */}
-              {graphYears.filter((y, i) => i % xStep === 0 || i === graphYears.length - 1).map(y => (
-                <text key={y} x={xs(y)} y={PT + CH + 16} textAnchor="middle" fontSize="9" fill="#374151">{y}</text>
-              ))}
+          {/* OVR line */}
+          <polyline
+            points={graphData.map(d => `${xs(d.year).toFixed(1)},${ys(d.ovr).toFixed(1)}`).join(' ')}
+            fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth={1.5} />
 
-              {/* Current year marker */}
-              <line x1={xs(clampedYear)} x2={xs(clampedYear)} y1={PT} y2={PT + CH}
-                stroke="rgba(255,255,255,0.35)" strokeWidth={1.5} strokeDasharray="4,3" />
+          {/* Dots */}
+          {graphData.map((d, i) => {
+            const isCurrent = d.year === clampedYear;
+            const cx = xs(d.year), cy = ys(d.ovr);
+            const dc = ERA_DOT[d.badge] || '#6b7280';
+            return (
+              <g key={i}>
+                {isCurrent && <circle cx={cx} cy={cy} r={9} fill={dc} opacity={0.15} />}
+                <circle cx={cx} cy={cy} r={isCurrent ? 5 : 3}
+                  fill={dc}
+                  stroke={isCurrent ? '#fff' : 'rgba(14,24,41,0.85)'}
+                  strokeWidth={isCurrent ? 1.5 : 0.8} />
+                <title>{d.year}: OVR {d.ovr} ({d.badge})</title>
+              </g>
+            );
+          })}
 
-              {/* OVR line */}
-              <polyline
-                points={graphData.map(d => `${xs(d.year).toFixed(1)},${ys(d.ovr).toFixed(1)}`).join(' ')}
-                fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth={1.5} />
+          {/* Current year OVR label */}
+          {(() => {
+            if (!currentData) return null;
+            const cx = xs(clampedYear), cy = ys(currentData.ovr);
+            const labelY = cy - 12 < PT + 8 ? cy + 16 : cy - 12;
+            return (
+              <text x={cx} y={labelY} textAnchor="middle" fontSize="10"
+                fontWeight="700" fill={ERA_DOT[currentData.badge] || '#fff'}>{currentData.ovr}</text>
+            );
+          })()}
+        </svg>
+      ) : (
+        <div style={{ fontSize:12, color:'#374151', padding:'12px 0' }}>Only one year of data available.</div>
+      )}
 
-              {/* Dots */}
-              {graphData.map((d, i) => {
-                const isCurrent = d.year === clampedYear;
-                const cx = xs(d.year), cy = ys(d.ovr);
-                const dc = ERA_DOT[d.badge] || '#6b7280';
-                return (
-                  <g key={i}>
-                    {isCurrent && <circle cx={cx} cy={cy} r={9} fill={dc} opacity={0.15} />}
-                    <circle cx={cx} cy={cy} r={isCurrent ? 5 : 3}
-                      fill={dc}
-                      stroke={isCurrent ? '#fff' : 'rgba(14,24,41,0.85)'}
-                      strokeWidth={isCurrent ? 1.5 : 0.8} />
-                    <title>{d.year}: OVR {d.ovr} ({d.badge})</title>
-                  </g>
-                );
-              })}
+      {/* Era legend */}
+      <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginTop:10 }}>
+        {[['RISING','#60a5fa'],['PEAK','#4ade80'],['VETERAN','#fbbf24'],['LATE CAREER','#fb923c'],['RETIRED','#f87171']].map(([b, c]) => (
+          <span key={b} style={{ fontSize:10, color:c, display:'flex', alignItems:'center', gap:4, fontWeight:700 }}>
+            <span style={{ width:6, height:6, borderRadius:'50%', background:c, display:'inline-block' }} />
+            {b}
+          </span>
+        ))}
+      </div>
 
-              {/* Current year OVR label */}
-              {(() => {
-                if (!currentData) return null;
-                const cx = xs(clampedYear), cy = ys(currentData.ovr);
-                const labelY = cy - 12 < PT + 8 ? cy + 16 : cy - 12;
-                return (
-                  <text x={cx} y={labelY} textAnchor="middle" fontSize="10"
-                    fontWeight="700" fill={ERA_DOT[currentData.badge] || '#fff'}>{currentData.ovr}</text>
-                );
-              })()}
-            </svg>
-          ) : (
-            <div style={{ fontSize:12, color:'#374151', padding:'16px 0' }}>Only one year of data available.</div>
-          )}
-
-          {/* Era legend */}
-          <div style={{ display:'flex', gap:14, flexWrap:'wrap', marginTop:10 }}>
-            {[['RISING','#60a5fa'],['PEAK','#4ade80'],['VETERAN','#fbbf24'],['LATE CAREER','#fb923c'],['RETIRED','#f87171']].map(([badge, color]) => (
-              <span key={badge} style={{ fontSize:10, color, display:'flex', alignItems:'center', gap:5, fontWeight:700 }}>
-                <span style={{ width:7, height:7, borderRadius:'50%', background:color, display:'inline-block' }} />
-                {badge}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* System note */}
-        <div style={{
-          fontSize:11, lineHeight:1.65, color:'#374151',
-          background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.05)',
-          borderRadius:8, padding:'10px 14px', marginBottom:20
-        }}>
-          <strong style={{ color:'#6b7280' }}>Why is the curve relatively flat?</strong> Six of seven pillars (Career Output, Peak ICC, Popularity, Role Reliability, Opposition Quality, Matchup Profile) are career-aggregate values that do not change with year. Only Current Form (10%) is scaled by era badge. This means a player's OVR stays near their peak even in their debut year. The era badge shows where the selected year falls in their career arc.
-        </div>
-
-        {/* Buttons */}
-        <div style={{ display:'flex', justifyContent:'flex-end', gap:10 }}>
-          <button onClick={onClose} style={{
-            padding:'9px 18px', fontSize:12, fontWeight:700, borderRadius:9,
-            background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', color:'#6b7280'
-          }}>Dismiss</button>
-          <button onClick={() => { onGenerate(player, localFormat); onClose(); }} style={{
-            padding:'9px 22px', fontSize:13, fontWeight:800, borderRadius:9,
-            background:'linear-gradient(135deg,#1d4ed8,#7c3aed)',
-            border:'none', color:'#fff', boxShadow:'0 4px 18px rgba(124,58,237,0.35)'
-          }}>Generate Full Card</button>
-        </div>
+      {/* Note */}
+      <div style={{ fontSize:10, lineHeight:1.65, color:'#374151', marginTop:12 }}>
+        Only Current Form (10%) is era-adjusted. The other six pillars use career-aggregate data, which is why the curve stays relatively flat.
       </div>
     </div>
   );
@@ -1587,7 +1506,6 @@ function App() {
   const [collection,  setCollection]  = useState([]);
   const [weights,     setWeights]     = useState({ ...FORMAT_CONFIG['T20I'].weights });
   const [showWeights, setShowWeights] = useState(false);
-  const [detailPlayer, setDetailPlayer] = useState(null);
   const inputRef = useRef(null);
 
   const foundPlayer = useMemo(() => findPlayer(query), [query]);
@@ -1658,15 +1576,9 @@ function App() {
   };
 
   const handleSelectFromDB = (player) => {
-    setDetailPlayer(player);
-  };
-
-  const handleGenerateFromModal = (player, modalFormat) => {
-    setFormat(modalFormat);
-    setWeights({ ...FORMAT_CONFIG[modalFormat].weights });
     setQuery(player.name);
     window.scrollTo({ top:0, behavior:'smooth' });
-    runGenerate(player, modalFormat);
+    runGenerate(player);
   };
 
   const saveCard = () => {
@@ -1835,6 +1747,7 @@ function App() {
                   }}>+ Save to Collection</button>
                 </div>
                 <BreakdownPanel card={card} />
+                <OVRHistoryPanel card={card} />
               </div>
             )}
 
@@ -1888,16 +1801,6 @@ function App() {
         />
       )}
 
-      {/* ── PLAYER DETAIL MODAL ── */}
-      {detailPlayer && (
-        <PlayerDetailModal
-          player={detailPlayer}
-          initFormat={format}
-          year={year}
-          onClose={() => setDetailPlayer(null)}
-          onGenerate={handleGenerateFromModal}
-        />
-      )}
     </div>
   );
 }
