@@ -1355,8 +1355,19 @@ function OVRHistoryPanel({ card }) {
   const clampedYear = Math.max(yearStart, Math.min(yearEnd, year));
   const currentData = graphData.find(d => d.year === clampedYear) || graphData[0];
 
-  const SVG_W = 480, SVG_H = 200;
-  const PL = 40, PR = 12, PT = 16, PB = 32;
+  // Era transition breakpoints: debut + every badge change
+  const transitions = (() => {
+    const result = [];
+    graphData.forEach((d, i) => {
+      if (i === 0 || d.badge !== graphData[i - 1].badge) {
+        result.push({ year: d.year, badge: d.badge, isFirst: i === 0 });
+      }
+    });
+    return result;
+  })();
+
+  const SVG_W = 480, SVG_H = 230;
+  const PL = 40, PR = 12, PT = 42, PB = 28;
   const CW = SVG_W - PL - PR, CH = SVG_H - PT - PB;
   const n  = graphYears.length;
 
@@ -1407,6 +1418,34 @@ function OVRHistoryPanel({ card }) {
                 fill={ERA_ZONE[d.badge] || 'transparent'} />
             );
           })}
+
+          {/* Era transition breakpoints */}
+          {(() => {
+            const ERA_SHORT = {
+              'RISING':      'Rising',
+              'PEAK':        'Peak',
+              'VETERAN':     'Veteran',
+              'LATE CAREER': 'Late career',
+              'RETIRED':     'Retired',
+              'PRE-CAREER':  'Pre-career',
+            };
+            return transitions.map((t, i) => {
+              const cx   = xs(t.year);
+              const color = ERA_DOT[t.badge] || '#6b7280';
+              const label = t.isFirst ? 'Debut' : ERA_SHORT[t.badge] || t.badge;
+              // Alternate rows so adjacent labels don't collide
+              const y1 = i % 2 === 0 ?  8 : 22;
+              const y2 = y1 + 12;
+              return (
+                <g key={`tr${i}`}>
+                  <line x1={cx} x2={cx} y1={PT} y2={PT + CH}
+                    stroke={color} strokeWidth={0.8} strokeDasharray="2,4" opacity={0.4} />
+                  <text x={cx} y={y1} textAnchor="middle" fontSize="8" fontWeight="700" fill={color}>{t.year}</text>
+                  <text x={cx} y={y2} textAnchor="middle" fontSize="7.5" fill={color} opacity={0.8}>{label}</text>
+                </g>
+              );
+            });
+          })()}
 
           {/* Grid lines */}
           {gridOVRs.map(ovr => (
